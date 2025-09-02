@@ -1008,6 +1008,7 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 
 <!-- === UPGRADE: Chord Modal + Add Step + Arp/Note-Repeat + Patch Save/Load (non-destructive) === -->
 <style>
+/* Minimal styles for modal & grids — appended to avoid touching existing CSS */
 .modal.upgrade { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.55); z-index: 9999; }
 .modal.upgrade.active { display: flex; }
 .modal.upgrade .card { width: min(720px, 96vw); max-height: 86vh; overflow: auto; background: #0f1725; color: #d8e1ee; border: 1px solid #1a263b; border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.45); padding: 16px; }
@@ -1055,6 +1056,7 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 
 <script>
 (()=>{
+  // Guard: run after main UI has been created
   const stepsEl = document.getElementById('steps');
   const chordsRow = document.getElementById('chordsRow');
   if(!stepsEl || !chordsRow || typeof UI === 'undefined' || !UI.steps || !UI.chords){
@@ -1069,10 +1071,12 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     <button id="addStep" class="btn upgrade primary" title="Добави нова стъпка за акорди">+ Step</button>
     <button id="openPatches" class="btn upgrade" title="Patch Save/Load">Patches</button>
   `;
+  // Insert just below the #steps grid
   stepsEl.parentElement.insertBefore(addBar, stepsEl.nextSibling);
 
   function updateGridlines(){
     const N = UI.steps.length;
+    // remove existing gridlines in #steps (keep playhead as first child)
     const nodes = Array.from(stepsEl.querySelectorAll('.gridline'));
     nodes.forEach(n => n.remove());
     for(let i=1;i<N;i++){
@@ -1084,6 +1088,7 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
   }
 
   function cloneChordOptions(){
+    // take options from the first select if present, else build a 12×8 list
     const first = chordsRow.querySelector('select');
     if(first){
       return Array.from(first.options).map(o => o.value);
@@ -1097,10 +1102,12 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 
   function addChordStep(defaultChord = 'Am'){
     const i = UI.steps.length;
+    // 1) add step cell
     const d = document.createElement('div'); d.className='step'; d.textContent = (i+1);
     d.addEventListener('click', ()=> d.classList.toggle('on'));
     stepsEl.appendChild(d); UI.steps.push(d);
 
+    // 2) add chord select
     const s = document.createElement('select');
     chordOptionsCache.forEach(opt => { const o=document.createElement('option'); o.value=o.textContent=opt; s.appendChild(o); });
     s.value = defaultChord;
@@ -1112,15 +1119,17 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 
   document.getElementById('addStep').addEventListener('click', ()=> addChordStep(UI.chords[UI.chords.length-1] || 'Am'));
 
+  // initial align of gridlines to existing length
   updateGridlines();
 
-  /* ========= 2) Chord Modal (12×8) ========= */
+  /* ========= 2) Chord Modal (12×8) — двоен клик върху селект ========= */
   const chordModal = document.getElementById('chordModal');
   const modalGrid = document.getElementById('modalGrid');
   const closeChordModal = document.getElementById('closeChordModal');
   const roots = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
   const quals = ["maj","min","maj7","min7","dom7","dim","aug","sus2"];
   let targetSelect = null;
+  // Build grid: 12 rows × 8 cols flattened
   modalGrid.style.gridTemplateColumns = 'repeat(8, minmax(0,1fr))';
   for(const r of roots){
     for(const q of quals){
@@ -1146,10 +1155,12 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     });
   }
   bindChordPickers();
+
+  // Re-bind when we add steps dynamically
   const chordsObserver = new MutationObserver(bindChordPickers);
   chordsObserver.observe(chordsRow, { childList: true });
 
-  /* ========= 3) Arp + Note-Repeat ========= */
+  /* ========= 3) Arp + Note-Repeat (контроли и логика) ========= */
   const adv = document.createElement('div');
   adv.className = 'row upgrade';
   adv.innerHTML = `
@@ -1193,6 +1204,7 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
       </select>
     </div>
   `;
+  // place after addBar
   addBar.parentElement.insertBefore(adv, addBar.nextSibling);
 
   function seqOrder(notes, dir){
@@ -1239,30 +1251,37 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     try{
       const data = JSON.parse(txt);
       if(data.bpm) { document.getElementById('bpm').value = data.bpm; document.getElementById('bpmVal').textContent = String(data.bpm); }
+      // grow chord steps if needed
       const need = Math.max(0, (data.chords?.length||0) - UI.chords.length);
       for(let k=0;k<need;k++) addChordStep('Am');
+      // apply steps/chords
       (data.stepsOn||[]).forEach((on,i)=>{ if(UI.steps[i]) UI.steps[i].classList.toggle('on', !!on); });
       (data.chords||[]).forEach((val,i)=>{ const sel = chordsRow.querySelectorAll('select')[i]; if(sel){ sel.value = val; sel.dispatchEvent(new Event('change')); } });
+      // Bass / WT
       (data.bass?.steps||[]).forEach((on,i)=>{ if(UI.bassSteps[i]) UI.bassSteps[i].classList.toggle('on', !!on); });
       (data.bass?.notes||[]).forEach((v,i)=>{ if(UI.bassNotes[i]) UI.bassNotes[i].value = v; });
       (data.wt?.steps||[]).forEach((on,i)=>{ if(UI.wtSteps[i]) UI.wtSteps[i].classList.toggle('on', !!on); });
       (data.wt?.notes||[]).forEach((v,i)=>{ if(UI.wtNotes[i]) UI.wtNotes[i].value = v; });
+      // Drums
       if(Array.isArray(data.drums)){
         for(let r=0;r<Math.min(4, data.drums.length); r++){
           for(let c=0;c<Math.min(16, data.drums[r].length); c++){
             UI.drumPattern.grid[r][c] = !!data.drums[r][c];
+            // reflect to DOM (find nth cell: there are 4 name cells first)
             const grid = document.getElementById('drumGrid');
-            const cellIndex = (r * (16+1)) + 1 + c;
+            const cellIndex = (r * (16+1)) + 1 + c; // +1 for the row label col
             const cell = grid.children[cellIndex];
             if(cell && cell.style){ cell.classList.toggle('on', UI.drumPattern.grid[r][c]); cell.style.borderColor = UI.drumPattern.grid[r][c] ? 'var(--accent-red)' : '#243b59'; }
           }
         }
       }
+      // Mixer
       if(data.mixer){
         document.getElementById('masterVol').value = data.mixer.masterVol ?? document.getElementById('masterVol').value;
         document.getElementById('chorusMix').value = data.mixer.chorusMix ?? document.getElementById('chorusMix').value;
         document.getElementById('cutoff').value = data.mixer.cutoff ?? document.getElementById('cutoff').value;
         document.getElementById('reso').value = data.mixer.reso ?? document.getElementById('reso').value;
+        // trigger input events so Audio core updates
         ['masterVol','chorusMix','cutoff','reso'].forEach(id=> document.getElementById(id).dispatchEvent(new Event('input')));
       }
       patchModal.classList.remove('active');
@@ -1271,44 +1290,42 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     }
   });
 
-  /* ========= 5) Extended Transport ========= */
+  /* ========= 5) Extended Transport (динамични стъпки + Arp/NR) ========= */
   const startBtn = document.getElementById('startBtn');
   const stopBtn = document.getElementById('stopBtn');
+
+  // Local scheduler to avoid editing the original Transport.tick
   const EXT = { timer:null, i:0, running:false };
 
-  function stepMs(){ return 60000 / parseInt(document.getElementById('bpm').value,10) / 2; }
+  function stepMs(){ return 60000 / parseInt(document.getElementById('bpm').value,10) / 2; } // 8ths
   function nextIndex(N){ return (EXT.i + 1) % N; }
 
   function triggerChord(i, t, ms){
     const sel = UI.chords[i]; if(!sel) return;
     const notes = Theory.chordToNotes(sel);
-    const t0 = Audio.ctx.currentTime;
+    const ctx = Audio.ctx;
     const arpOn = document.getElementById('arpOn').checked;
     const nrOn  = document.getElementById('nrOn').checked;
+
     if(arpOn){
-      const rateDiv = parseInt(document.getElementById('arpRate').value, 10);
+      const rateDiv = parseInt(document.getElementById('arpRate').value, 10); // e.g., 8 -> 1/8
       const dir = document.getElementById('arpDir').value;
       const oct = parseInt(document.getElementById('arpOct').value, 10);
       const gate = parseFloat(document.getElementById('arpGate').value);
+      // expand notes by octaves
       let seq = notes.slice();
+      const last = notes[notes.length-1];
       for(let o=2; o<=oct; o++){
         const mul = Math.pow(2, o-1);
         seq = seq.concat(notes.map(n => n * mul));
       }
-      function seqOrder(n,d){
-        if(d==='up') return n.slice();
-        if(d==='down') return n.slice().reverse();
-        if(d==='updown'){ const a=n.slice(); const b=n.slice().reverse(); b.shift(); b.pop(); return a.concat(b); }
-        if(d==='random'){ const a=n.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
-        return n.slice();
-      }
       seq = seqOrder(seq, dir);
-      const per = (ms/1000) * (8 / rateDiv);
+      const per = (ms/1000) * (8 / rateDiv); // 8th note base
       let tt = t;
       seq.forEach(nf => {
         Audio.playVoice({freq:nf, time:tt, dur:per*gate, vel:0.9});
         tt += per;
-        if(tt > t + (ms/1000)) return;
+        if(tt > t + (ms/1000)) return; // don't run beyond step duration
       });
     } else if(nrOn){
       const rateDiv = parseInt(document.getElementById('nrRate').value, 10);
@@ -1319,6 +1336,7 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
         tt += per;
       }
     } else {
+      // original single-hit
       notes.forEach(nf => Audio.playVoice({freq:nf, time:t, dur:ms/1000*0.9, vel:0.9}));
     }
   }
@@ -1329,29 +1347,41 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     const t = Audio.ctx.currentTime;
     const N = UI.steps.length || 8;
     const i = EXT.i;
+
+    // playhead position
     UI.playheadEl.style.left = ((i/N)*100)+'%';
+
+    // Chord lane
     if(UI.steps[i] && UI.steps[i].classList.contains('on')){
       triggerChord(i, t, ms);
       if(Arranger.isArmed()){
+        // record just the root note of the chord for visuals
         const rootFreq = Theory.chordToNotes(UI.chords[i])[0];
         Arranger.record({type:'note', freq:rootFreq, dur:ms/1000*0.9, lane:'chord'});
       }
     }
+
+    // Bass 303 lane (guard for indices beyond 8)
     if(UI.bassSteps[i] && UI.bassSteps[i].classList.contains('on')){
       const f = Theory.freq(UI.bassNotes[i].value);
       Audio.B303.trig({freq:f,time:t,dur:ms/1000*0.95,slide:window.__b303Slide,reso:window.__b303Reso,accent:window.__b303Accent});
       if(Arranger.isArmed()) Arranger.record({type:'bass303', freq:f, dur:ms/1000*0.95, lane:'bass303'});
     }
+
+    // WT lane
     if(UI.wtSteps[i] && UI.wtSteps[i].classList.contains('on')){
       const f = Theory.freq(UI.wtNotes[i].value);
       Audio.WT.trig({freq:f,time:t});
       if(Arranger.isArmed()) Arranger.record({type:'wt', freq:f, dur:parseFloat(document.getElementById('wtHold').value), lane:'wt'});
     }
+
+    // Drums (map 8th steps to 16-grid)
     const col = (i*2) % 16;
     if(UI.drumPattern.grid[0][col]){ Audio.kick(t,1.0); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Kick', dur:0.1, lane:'drums'}); }
     if(UI.drumPattern.grid[1][col]){ Audio.snare(t,0.85); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Snare', dur:0.1, lane:'drums'}); }
     if(UI.drumPattern.grid[2][col]){ Audio.hat(t,0.6); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Hat', dur:0.06, lane:'drums'}); }
     if(UI.drumPattern.grid[3][col]){ Audio.clap(t,0.65); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Clap', dur:0.12, lane:'drums'}); }
+
     EXT.i = nextIndex(N);
     EXT.timer = setTimeout(tick, ms);
   }
@@ -1368,11 +1398,11 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
     if(EXT.timer){ clearTimeout(EXT.timer); EXT.timer = null; }
   }
 
-  const startBtn = document.getElementById('startBtn');
-  const stopBtn = document.getElementById('stopBtn');
+  // Rebind transport buttons to the extended scheduler
   startBtn.addEventListener('click', (e)=>{ e.stopImmediatePropagation(); extStart(); }, true);
   stopBtn.addEventListener('click',  (e)=>{ e.stopImmediatePropagation(); extStop();  }, true);
 
+  // Keyboard: space = start/stop toggle
   window.addEventListener('keydown', (e)=>{
     if(e.code === 'Space'){
       e.preventDefault();
@@ -1383,24 +1413,48 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 </script>
 
 
-<style>.chords-under-arp { margin-top: 10px; }</style>
+<!-- === PATCH #2: Move Chords row under ARP; add "– Step" (remove) === -->
+<style>
+  /* small spacing when chords row is moved under ARP controls */
+  .chords-under-arp { margin-top: 10px; }
+</style>
 <script>
 (() => {
   if (window.__patch2_applied) return;
   window.__patch2_applied = true;
+
   const chordsRow = document.getElementById('chordsRow');
   const stepsEl   = document.getElementById('steps');
   const addBtn    = document.getElementById('addStep');
   const arpOnEl   = document.getElementById('arpOn');
-  if (!chordsRow || !stepsEl || !addBtn || !arpOnEl) return;
+
+  if (!chordsRow || !stepsEl || !addBtn || !arpOnEl) {
+    console.warn('[Patch#2] Missing one of required anchors (chordsRow/steps/addStep/arpOn).');
+    return;
+  }
+
+  // 1) Move the "Chords" selects under the ARP row (exactly after the row that contains Arp On)
+  // Find the ARP control row container and move chordsRow just after it.
   const arpRow = arpOnEl.closest('.row.upgrade') || arpOnEl.parentElement;
-  try { if (arpRow && chordsRow) { arpRow.insertAdjacentElement('afterend', chordsRow); chordsRow.classList.add('chords-under-arp'); } } catch {}
+  try {
+    if (arpRow && chordsRow) {
+      arpRow.insertAdjacentElement('afterend', chordsRow);
+      chordsRow.classList.add('chords-under-arp');
+    }
+  } catch (e) {
+    console.warn('[Patch#2] Could not move chordsRow after ARP row:', e);
+  }
+
+  // 2) Add a "– Step" button next to "+ Step" to remove the last step
   const removeBtn = document.createElement('button');
   removeBtn.id = 'removeStep';
   removeBtn.className = 'btn upgrade danger';
   removeBtn.textContent = '– Step';
   removeBtn.title = 'Премахни последната стъпка (минимум 1)';
+  // place it immediately after +Step
   addBtn.insertAdjacentElement('afterend', removeBtn);
+
+  // Helper to rebuild gridlines for the steps track
   function rebuildGridlines() {
     const N = (window.UI && UI.steps ? UI.steps.length : stepsEl.querySelectorAll('.step').length);
     Array.from(stepsEl.querySelectorAll('.gridline')).forEach(n => n.remove());
@@ -1411,62 +1465,69 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
       stepsEl.appendChild(gl);
     }
   }
+
   removeBtn.addEventListener('click', () => {
     try {
       const stepCells = stepsEl.querySelectorAll('.step');
       const chordSelects = chordsRow.querySelectorAll('select');
+      // keep at least 1 step to avoid degenerate state
       if (stepCells.length <= 1 || chordSelects.length <= 1) return;
-      const lastSel = chordSelects[chordSelects.length - 1]; if (lastSel) lastSel.remove();
-      const lastStep = stepCells[stepCells.length - 1]; if (lastStep) lastStep.remove();
-      if (window.UI) { if (Array.isArray(UI.steps) && UI.steps.length) UI.steps.pop(); if (Array.isArray(UI.chords) && UI.chords.length) UI.chords.pop(); }
+
+      // Remove last chord select
+      const lastSel = chordSelects[chordSelects.length - 1];
+      if (lastSel && lastSel.parentElement) lastSel.parentElement.removeChild(lastSel);
+
+      // Remove last visual step cell
+      const lastStep = stepCells[stepCells.length - 1];
+      if (lastStep && lastStep.parentElement) lastStep.parentElement.removeChild(lastStep);
+
+      // Sync UI arrays if present
+      if (window.UI) {
+        if (Array.isArray(UI.steps) && UI.steps.length) UI.steps.pop();
+        if (Array.isArray(UI.chords) && UI.chords.length) UI.chords.pop();
+      }
+
       rebuildGridlines();
-    } catch {}
+    } catch (err) {
+      console.warn('[Patch#2] remove step failed:', err);
+    }
   });
+
+  // Rebuild gridlines once after potential layout move
   rebuildGridlines();
 })();
 </script>
 
 
+<!-- === PATCH #3: Move Chords row directly under (+ Step / – Step / Patches) buttons === -->
 <script>
 (() => {
   if (window.__patch3_applied) return;
   window.__patch3_applied = true;
-  const chordsRow = document.getElementById('chordsRow');
-  const addBtn    = document.getElementById('addStep');
-  if (!chordsRow || !addBtn) return;
-  const toolbar = addBtn.closest('.row.upgrade') || addBtn.parentElement;
-  if (!toolbar) return;
-  try { toolbar.insertAdjacentElement('afterend', chordsRow); chordsRow.classList.add('chords-under-arp'); } catch {}
-})();
-</script>
 
-
-<script>
-(() => {
-  if (window.__patch4_applied) return;
-  window.__patch4_applied = true;
   const chordsRow = document.getElementById('chordsRow');
-  if (!chordsRow) return;
-  const ROOTS = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
-  const QUALS = ["maj","min","maj7","min7","dom7","dim","aug","sus2"];
-  function labelFor(r,q){ if(q==="maj")return r; if(q==="min")return r+"m"; if(q==="dom7")return r+"7"; return r+" "+q; }
-  const FULL = []; for(const r of ROOTS) for(const q of QUALS) FULL.push(labelFor(r,q));
-  function ensureFullOptions(sel){
-    if(!sel) return;
-    const prev = sel.value;
-    while(sel.firstChild) sel.removeChild(sel.firstChild);
-    FULL.forEach(lab=>{ const o=document.createElement('option'); o.value=o.textContent=lab; sel.appendChild(o); });
-    sel.value = FULL.includes(prev) ? prev : 'Am';
-    if(window.UI){ const idx = Array.prototype.indexOf.call(chordsRow.querySelectorAll('select'), sel); if(idx>=0) UI.chords[idx]=sel.value; }
+  const addBtn    = document.getElementById('addStep');   // exists from Patch #1
+  const removeBtn = document.getElementById('removeStep'); // exists from Patch #2
+
+  if (!chordsRow || !addBtn) {
+    console.warn('[Patch#3] Missing chordsRow or addStep button.');
+    return;
   }
-  Array.from(chordsRow.querySelectorAll('select')).forEach(ensureFullOptions);
-  const obs = new MutationObserver(muts=>{
-    muts.forEach(m=> m.addedNodes.forEach(node=>{
-      if(node && node.tagName==='SELECT') ensureFullOptions(node);
-      if(node && node.querySelectorAll) node.querySelectorAll('select').forEach(ensureFullOptions);
-    }));
-  });
-  obs.observe(chordsRow, {childList:true, subtree:true});
+
+  // The toolbar row is the parent .row.upgrade that contains + Step / – Step / Patches
+  const toolbar = addBtn.closest('.row.upgrade') || addBtn.parentElement;
+  if (!toolbar) {
+    console.warn('[Patch#3] Could not locate toolbar row.');
+    return;
+  }
+
+  // Move chordsRow right AFTER the toolbar row (so visually it sits under the buttons)
+  try {
+    toolbar.insertAdjacentElement('afterend', chordsRow);
+    chordsRow.classList.add('chords-under-arp'); // reuse small spacing style
+  } catch (e) {
+    console.warn('[Patch#3] Moving chordsRow failed:', e);
+  }
 })();
 </script>
 
