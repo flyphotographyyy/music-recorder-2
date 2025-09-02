@@ -1,0 +1,1009 @@
+<!DOCTYPE html>
+<html lang="bg">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Stable Music Studio — TL+Transport + Bass303 + Wavetable + Recorder</title>
+<style>
+  :root{
+    --bg:#0b0f14; --panel:#121926; --panel-2:#0f1623; --text:#e7eef7; --muted:#8aa0b7;
+    --accent:#4cc9f0; --red:#ff3b30; --grid:#1c2535;
+  }
+  *{box-sizing:border-box}
+  body{margin:0;background:linear-gradient(160deg,#0b0f14,#0a0d12);color:var(--text);font:14px/1.35 system-ui,Segoe UI,Roboto,Helvetica,Arial,sans-serif}
+  header{display:flex;align-items:center;gap:12px;padding:14px 16px;background:rgba(255,255,255,.03);backdrop-filter: blur(6px);position:sticky;top:0;z-index:6;border-bottom:1px solid #101624}
+  h1{font-size:16px;margin:0;color:var(--text);opacity:.95;font-weight:700}
+  .badge{font-size:11px;padding:3px 8px;border-radius:999px;background:linear-gradient(180deg,#122338,#0e1a2b);border:1px solid #1f2a3e;color:var(--muted)}
+  main{display:grid;grid-template-columns: 1.15fr .85fr;gap:14px;padding:14px}
+  @media (max-width: 980px){ main{grid-template-columns:1fr} }
+  .panel{background:var(--panel);border:1px solid #162033;border-radius:14px;box-shadow:0 10px 30px rgba(0,0,0,.25);overflow:hidden}
+  .panel h2{font-size:13px;margin:0;padding:10px 12px;border-bottom:1px solid #17253a;background:linear-gradient(180deg,#121b2a,#0f1827);color:var(--muted);letter-spacing:.4px;text-transform:uppercase}
+  .row{display:flex;gap:10px;flex-wrap:wrap;padding:12px}
+  .control{display:flex;flex-direction:column;gap:6px;min-width:120px}
+  .control label{font-size:12px;color:var(--muted)}
+  .btn{appearance:none;border:1px solid #1c2a40;background:linear-gradient(180deg,#152032,#0f1827);color:var(--text);padding:8px 14px;border-radius:10px;cursor:pointer;transition:transform .05s ease,box-shadow .2s}
+  .btn:hover{box-shadow:0 4px 16px rgba(76,201,240,.12)}
+  .btn:active{transform:translateY(1px)}
+  .btn.primary{background:linear-gradient(180deg,#1f2c45,#16243b);border-color:#274260}
+  .btn.danger{border-color:#4b1f27;background:linear-gradient(180deg,#3a1217,#2a0f13);color:#ffd7db}
+  input, select{background:#0c1320;border:1px solid #1b2942;color:var(--text);padding:8px;border-radius:10px;outline:none}
+  select{min-width:120px}
+  .kbd{font-family: ui-monospace,SFMono-Regular,Menlo,Consolas,monospace; background:#0e1726;border:1px solid #1c2a42;border-radius:6px;padding:2px 6px;color:#a9c0db}
+  /* step timeline */
+  .timeline{padding:12px;display:grid;gap:10px}
+  .barLabels{display:flex;justify-content:space-between;font-size:11px;color:#7e91a9;padding:0 4px}
+  .steps{display:grid;grid-template-columns: repeat(8, 1fr);gap:8px;position:relative;background:var(--panel-2);padding:10px;border-radius:12px;border:1px solid #1a263b}
+  .step{aspect-ratio:1.6/1;border-radius:10px;border:1px solid #23324c;background:linear-gradient(180deg,#0f1827,#0b1320);display:flex;align-items:center;justify-content:center;color:#8aa0b7;cursor:pointer;user-select:none;transition:all .15s}
+  .step.on{border-color:#2f8ac9;background:linear-gradient(180deg,#123152,#0e1c32);color:#d8eeff;box-shadow:inset 0 0 0 1px #2f8ac9}
+  .playhead{position:absolute;top:8px;bottom:8px;width:3px;background:var(--red);border-radius:2px;box-shadow:0 0 6px rgba(255,59,48,.8);transform:translateX(-1px);pointer-events:none}
+  .gridline{position:absolute;top:8px;bottom:8px;width:1px;background:#1e2a3d;opacity:.7}
+  .laneTitle{font-size:12px;color:#96a8c0;margin-top:2px}
+  .lane{display:grid;grid-template-columns:120px 1fr;gap:8px;align-items:center}
+  .lane .name{color:#9fb3cd;font-size:12px;text-align:right;padding-right:6px}
+  .lane .cells{display:grid;grid-template-columns:repeat(8,1fr);gap:8px}
+  .cell{aspect-ratio:1.6/1;border-radius:8px;border:1px solid #23324c;background:linear-gradient(180deg,#0f1827,#0b1320);display:flex;align-items:center;justify-content:center;color:#8aa0b7;cursor:pointer}
+  .cell.on{border-color:#2f8ac9;background:linear-gradient(180deg,#123152,#0e1c32);color:#d8eeff;box-shadow:inset 0 0 0 1px #2f8ac9}
+  .noteRow{display:grid;grid-template-columns:120px repeat(8,1fr);gap:8px}
+  .noteRow .name{color:#9fb3cd;text-align:right;padding-right:6px}
+  .noteRow select{width:100%}
+
+  /* Arranger (multi-lane) */
+  .arranger{padding:12px;border-top:1px solid #17253a;background:linear-gradient(0deg,#0e1624,#0f1a2a)}
+  .arr-toolbar{display:flex;gap:10px;align-items:center;margin-bottom:8px;flex-wrap:wrap}
+  .arr-toolbar .len{font-size:12px;color:var(--muted)}
+  .arr-wrap{position:relative;border:1px solid #1a263b;border-radius:12px;background:var(--panel-2);height:210px;overflow:hidden}
+  .arr-axis{position:absolute;left:0;right:0;top:0;height:18px;color:#7e91a9;font-size:10px;padding:2px 6px;display:flex;gap:12px;align-items:center}
+  .arr-track{position:absolute;left:0;right:0;top:18px;bottom:0}
+  .arr-event{position:absolute;height:18px;border:1px solid #2a4270;border-radius:6px;background:linear-gradient(180deg,#163055,#102137);color:#cfe6ff;font-size:10px;display:flex;align-items:center;justify-content:center;cursor:grab;user-select:none}
+  .arr-event.note{background:linear-gradient(180deg,#1a3a66,#11253d)}
+  .arr-event.bass303{background:linear-gradient(180deg,#664a1a,#3d2a11)}
+  .arr-event.wt{background:linear-gradient(180deg,#3a1a66,#24113d)}
+  .arr-event.drums{background:linear-gradient(180deg,#1a663d,#113d25)}
+  .arr-event.pad{background:linear-gradient(180deg,#66401a,#3d2711)}
+  .arr-playhead{position:absolute;top:0;bottom:0;width:2px;background:var(--red);box-shadow:0 0 6px rgba(255,59,48,.8);pointer-events:none}
+  .arr-limit{position:absolute;top:0;bottom:0;width:6px;background:linear-gradient(180deg,#22314b66,#1a2238cc);border-left:2px dashed #375a86;cursor:ew-resize}
+  .laneLabel{position:absolute;left:6px;font-size:10px;color:#97a8c0;opacity:.9}
+  .laneGrid{position:absolute;left:0;right:0;height:18px;border-bottom:1px solid #1b2a40}
+  .inline-help{font-size:12px;color:#8aa0b7;padding:0 12px 10px}
+  .footer{padding:10px 14px;color:#7c8ea6;border-top:1px solid #17253a;font-size:12px;background:linear-gradient(180deg,#101724,#0e1623)}
+
+/* ==== Mobile/responsive tweaks (no logic / no UI removal) ==== */
+
+/* Allow long sections to scroll horizontally on small screens */
+.timeline{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+#drumGrid{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+/* Ensure grids have a sensible minimum width so they don't crush on phones */
+.steps, #bassCells, #wtCells{ min-width: 560px; }
+#drumGrid{ min-width: 960px; }
+.pads, .pad-tools{ overflow-x:auto; -webkit-overflow-scrolling:touch; }
+.pads{ min-width: 360px; }
+
+/* Make toolbars wrap nicely */
+header{ flex-wrap: wrap; }
+.badge{ margin-top: 4px; }
+
+/* Controls wrap in 2 columns on narrow screens, then 1 column if ultra-narrow */
+.row{ row-gap: 10px; }
+.control{ flex: 1 1 220px; min-width: 160px; }
+@media (max-width: 720px){
+  main{ grid-template-columns:1fr; }
+  .control{ flex: 1 1 calc(50% - 10px); min-width: calc(50% - 10px); }
+  .panel h2{ font-size:12px; padding:8px 10px; }
+  .arr-wrap{ height: 180px; }
+}
+@media (max-width: 450px){
+  .control{ flex:1 1 100%; min-width:100%; }
+  .steps, #bassCells, #wtCells{ min-width: 620px; } /* a bit wider to keep tap targets */
+  #drumGrid{ min-width: 1040px; }
+  h1{ font-size:14px; }
+}
+
+/* Prevent inner content from being clipped by rounded corners when it needs to scroll */
+.panel{ overflow: hidden; /* keep rounded corners */ }
+.timeline, #drumGrid, .pads, .pad-tools{ padding-bottom: 6px; }
+
+/* Make selects and inputs friendlier on touch */
+input[type="range"], select, button{ touch-action: manipulation; }
+
+
+/* ======== Responsive overrides copied/adapted from index(12) approach (no logic changes) ======== */
+@media (max-width: 980px){
+  /* Single column like index's .cols rule */
+  main{ grid-template-columns:1fr !important; gap:12px !important; }
+  header{ flex-wrap:wrap; row-gap:6px; }
+  /* Controls wrap neatly */
+  .row{ row-gap:10px; }
+  .control{ flex:1 1 46% !important; min-width: 46% !important; }
+  /* Timeline compaction */
+  .timeline{ overflow-x:visible !important; }
+  .steps, .lane .cells, .noteRow{ min-width: auto !important; }
+  .steps{ gap:6px !important; padding:8px !important; }
+  .step{ aspect-ratio: 1.12/1 !important; }
+  .lane .cells{ gap:6px !important; }
+  .cell{ aspect-ratio: 1.12/1 !important; }
+  .noteRow{ gap:6px !important; }
+  /* Drum grid fits viewport width (no forced scroll) */
+  #drumGrid{ min-width:auto !important; grid-template-columns: 72px repeat(16, 1fr) !important; }
+  #drumGrid > div{ min-width: 0 !important; }
+  /* Pads grid compaction */
+  .pads, .pad-tools{ min-width:auto !important; grid-template-columns: repeat(4, 1fr) !important; }
+  .pad{ min-width: 0 !important; }
+  /* Arranger height a bit shorter on phones */
+  .arr-wrap{ height: 180px !important; }
+}
+
+/* Very small phones */
+@media (max-width: 420px){
+  .control{ flex: 1 1 100% !important; min-width: 100% !important; }
+  .steps{ gap:4px !important; }
+  .step{ aspect-ratio: 1.0/1 !important; }
+  .lane .cells{ gap:4px !important; }
+  .cell{ aspect-ratio: 1.0/1 !important; }
+  #drumGrid{ grid-template-columns: 60px repeat(16, 1fr) !important; gap:4px !important; }
+}
+/* Improve touch behavior similar to index */
+input[type="range"], select, button { touch-action: manipulation; }
+
+
+/* Mobile bottom navigation for dynamic pages */
+.mobile-nav{ position:fixed; left:0; right:0; bottom:0; height:56px; background:rgba(10,15,22,.96); border-top:1px solid #152238; display:none; align-items:center; justify-content:space-around; padding-bottom: env(safe-area-inset-bottom); z-index:999; }
+.mobile-nav button{ appearance:none; background:none; border:none; color:#9fb3cd; font-size:12px; padding:6px 8px; border-radius:10px; }
+.mobile-nav button.active{ color:#e7eef7; background:#132033; }
+@media (max-width: 980px){ .mobile-nav{ display:flex; } body{ padding-bottom: calc(56px + env(safe-area-inset-bottom)); } }
+/* Pages: show/hide only on mobile; desktop shows everything */
+@media (max-width: 980px){
+  body[data-page="timeline"] section.panel:nth-of-type(2){ display:none !important; }
+  body[data-page="timeline"] section.panel:nth-of-type(1) .arranger{ display:none !important; }
+  body[data-page="arranger"] section.panel:nth-of-type(2){ display:none !important; }
+  body[data-page="arranger"] section.panel:nth-of-type(1) > *:not(.arranger){ display:none !important; }
+  body[data-page="drums"] section.panel:nth-of-type(1){ display:none !important; }
+  body[data-page="drums"] section.panel:nth-of-type(2){ display:block !important; }
+  /* default studio shows everything stacked */
+}
+
+
+/* Top tabs for mobile (duplicate of bottom nav for visibility) */
+.top-tabs{ display:none; gap:8px; padding:8px 12px; border-bottom:1px solid #152238; background:rgba(10,15,22,.6); position:sticky; top:56px; z-index:7; }
+.top-tabs button{ appearance:none; border:1px solid #1c2a40; background:linear-gradient(180deg,#152032,#0f1827); color:#9fb3cd; border-radius:10px; padding:6px 10px; font-size:12px; }
+.top-tabs button.active{ color:#e7eef7; background:#132033; }
+@media (max-width:980px){ .top-tabs{ display:flex; } header{ position:sticky; top:0; z-index:8; } }
+
+
+/* Ensure visibility of grids */
+.steps{ min-height: 64px; }
+#drumGrid{ min-height: 120px; }
+.pads{ min-height: 160px; }
+
+
+/* === CSS-only dynamic pages (hash :target) === */
+.anchor-target{ position:absolute; width:0; height:0; overflow:hidden; }
+@media (max-width:980px){
+  /* Defaults on mobile: show everything (Studio) */
+  /* Timeline page: hide right panel and the Arranger block inside the left panel */
+  #timeline:target ~ main section.panel:nth-of-type(2){ display:none !important; }
+  #timeline:target ~ main section.panel:nth-of-type(1) .arranger{ display:none !important; }
+
+  /* Arranger page: hide right panel; show only arranger block from left */
+  #arranger:target ~ main section.panel:nth-of-type(2){ display:none !important; }
+  #arranger:target ~ main section.panel:nth-of-type(1) > *:not(.arranger){ display:none !important; }
+  #arranger:target ~ main section.panel:nth-of-type(1) .arranger{ display:block !important; }
+
+  /* Drums page: only right panel */
+  #drums:target ~ main section.panel:nth-of-type(1){ display:none !important; }
+  #drums:target ~ main section.panel:nth-of-type(2){ display:block !important; }
+}
+
+/* CSS-only bottom nav with <a> links (no JS) */
+.mobile-nav-links{ position:fixed; left:0; right:0; bottom:0; height:56px; background:rgba(10,15,22,.96); border-top:1px solid #152238; display:none; align-items:center; justify-content:space-around; padding-bottom: env(safe-area-inset-bottom); z-index:999; }
+.mobile-nav-links a{ color:#9fb3cd; text-decoration:none; font-size:12px; padding:6px 10px; border-radius:10px; border:1px solid #1c2a40; background:linear-gradient(180deg,#152032,#0f1827); }
+@media (max-width:980px){ .mobile-nav-links{ display:flex; } body{ padding-bottom: calc(56px + env(safe-area-inset-bottom)); } }
+
+/* Hide JS buttons nav on mobile to avoid confusion; keep desktop */
+@media (max-width:980px){ .mobile-nav, .top-tabs{ display:none !important; } }
+
+
+/* === Mobile visibility fixes (CSS-only; no logic touched) === */
+:root{ --stepH: 42px; }
+@media (max-width:980px){
+  :root{ --stepH: 38px; }
+  /* Make 8-step lanes always tall enough to see/tap */
+  .step, .cell{ height: var(--stepH) !important; aspect-ratio: auto !important; }
+  .steps{ gap:6px !important; padding:8px !important; }
+  .lane .cells{ gap:6px !important; }
+  /* Note selectors: shrink label col + keep each select with a min width */
+  .noteRow{ grid-template-columns: 72px repeat(8, 1fr) !important; }
+  .noteRow select{ min-width: 64px !important; }
+  .lane{ grid-template-columns: 72px 1fr !important; }
+  .lane .name, .noteRow .name{ font-size: 11px !important; }
+  /* Drum grid: ensure row height and visibility of cells */
+  #drumGrid{ grid-template-columns: 64px repeat(16, 1fr) !important; gap:6px !important; min-width: auto !important; }
+  #drumGrid > div{ min-height: var(--stepH) !important; }
+  /* Pads: show big tappable rectangles even if aspect-ratio misbehaves */
+  .pads{ grid-template-columns: repeat(4, 1fr) !important; gap:8px !important; }
+  .pad{ aspect-ratio: auto !important; min-height: 72px !important; display:flex !important; align-items:center !important; justify-content:center !important; }
+}
+@media (max-width:420px){
+  :root{ --stepH: 34px; }
+  .pads{ grid-template-columns: repeat(2, 1fr) !important; }
+  .noteRow select{ min-width: 56px !important; }
+  #drumGrid{ grid-template-columns: 56px repeat(16, 1fr) !important; gap:4px !important; }
+}
+
+
+/* === iOS hard overrides to FORCE visibility/tap targets (CSS-only) === */
+@media (max-width:980px){
+  .panel{ overflow: visible !important; }
+  .timeline{ overflow: visible !important; }
+  /* Steps (8) */
+  body .steps{ display:grid !important; grid-template-columns: repeat(8, minmax(0,1fr)) !important; gap:8px !important; padding:8px !important; min-width:auto !important; }
+  body .steps .step{ display:flex !important; align-items:center !important; justify-content:center !important; height:44px !important; min-height:44px !important; aspect-ratio:auto !important; }
+  /* Bass/Wavetable cells */
+  body .lane{ grid-template-columns:72px 1fr !important; }
+  body .lane .cells{ display:grid !important; grid-template-columns: repeat(8, minmax(0,1fr)) !important; gap:8px !important; min-width:auto !important; }
+  body .lane .cells .cell{ display:flex !important; align-items:center !important; justify-content:center !important; height:44px !important; min-height:44px !important; aspect-ratio:auto !important; }
+  /* Note selectors */
+  body .noteRow{ grid-template-columns:72px repeat(8, minmax(0,1fr)) !important; gap:8px !important; min-width:auto !important; }
+  body .noteRow select{ min-width:0 !important; width:100% !important; }
+  /* Drum grid */
+  body #drumGrid{ grid-template-columns:64px repeat(16, minmax(0,1fr)) !important; gap:6px !important; min-width:auto !important; }
+  body #drumGrid > div{ min-height:44px !important; }
+  /* Pads */
+  body .pads{ grid-template-columns: repeat(4, 1fr) !important; gap:10px !important; }
+  body .pads .pad{ display:flex !important; align-items:center !important; justify-content:center !important; height:84px !important; min-height:84px !important; aspect-ratio:auto !important; }
+}
+@media (max-width:420px){
+  body .pads{ grid-template-columns: repeat(2, 1fr) !important; }
+  body #drumGrid{ grid-template-columns:56px repeat(16, minmax(0,1fr)) !important; gap:4px !important; }
+  body .steps .step, body .lane .cells .cell{ height:38px !important; min-height:38px !important; }
+}
+
+</style>
+</head>
+<body>
+<header>
+  <h1>Stable Music Studio</h1>
+  <span class="badge">Multi‑lane Arranger</span>
+  <span class="badge">Recorder: WAV / WebM</span>
+</header>
+
+<div class="top-tabs" role="navigation" aria-label="Page tabs (mobile)">
+  <button data-page="studio" id="tabStudio">Studio</button>
+  <button data-page="timeline" id="tabTimeline">Timeline</button>
+  <button data-page="arranger" id="tabArranger">Arranger</button>
+  <button data-page="drums" id="tabDrums">Drums</button>
+</div>
+
+
+
+<!-- CSS-only page anchors (hash navigation) -->
+<a id="studio" class="anchor-target" aria-hidden="true"></a>
+<a id="timeline" class="anchor-target" aria-hidden="true"></a>
+<a id="arranger" class="anchor-target" aria-hidden="true"></a>
+<a id="drums" class="anchor-target" aria-hidden="true"></a>
+
+<main>
+  <section class="panel">
+    <h2>Timeline &amp; Transport</h2>
+
+    <div class="row">
+      <button id="startBtn" class="btn primary">Start</button>
+      <button id="stopBtn" class="btn danger">Stop</button>
+
+      <div class="control">
+        <label for="bpm">BPM</label>
+        <input type="range" id="bpm" min="60" max="160" step="1" value="120" />
+        <div><span id="bpmVal">120</span> bpm</div>
+      </div>
+
+      <div class="control">
+        <label>Arm TL Rec</label>
+        <div class="switch">
+          <input type="checkbox" id="armTl" />
+          <label for="armTl">Record to Arranger</label>
+        </div>
+      </div>
+
+      <!-- Recorder controls -->
+      <div class="control">
+        <label>Запис и изтегляне</label>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <button id="recBtn" class="btn">Rec</button>
+          <button id="stopRecBtn" class="btn danger">Stop Rec</button>
+          <button id="dlWavBtn" class="btn">Download WAV</button>
+          <button id="dlWebmBtn" class="btn" style="display:none">Download WebM</button>
+        </div>
+        <small id="recStatus" style="color:#8aa0b7">Idle</small>
+      </div>
+    </div>
+
+    <div class="timeline">
+      <div class="barLabels"><span>1</span><span>5</span><span>9</span><span>13</span></div>
+      <div class="steps" id="steps">
+        <div class="playhead" id="playhead"></div>
+        <div class="gridline" style="left:12.5%"></div>
+        <div class="gridline" style="left:25%"></div>
+        <div class="gridline" style="left:37.5%"></div>
+        <div class="gridline" style="left:50%"></div>
+        <div class="gridline" style="left:62.5%"></div>
+        <div class="gridline" style="left:75%"></div>
+        <div class="gridline" style="left:87.5%"></div>
+      </div>
+      <!-- Chords for main lane -->
+      <div class="noteRow" id="chordsRow"><div class="name">Chords</div></div>
+
+      <!-- NEW: Bass 303 lane (steps + note select) -->
+      <div class="laneTitle">Bass 303</div>
+      <div class="lane">
+        <div class="name">Pattern</div>
+        <div class="cells" id="bassCells"></div>
+      </div>
+      <div class="noteRow" id="bassNotesRow"><div class="name">Notes</div></div>
+
+      <!-- NEW: Wavetable lane (steps + note select) -->
+      <div class="laneTitle">Wavetable</div>
+      <div class="lane">
+        <div class="name">Pattern</div>
+        <div class="cells" id="wtCells"></div>
+      </div>
+      <div class="noteRow" id="wtNotesRow"><div class="name">Notes</div></div>
+    </div>
+
+    <!-- Instrument parameters -->
+    <div class="row">
+      <div class="control">
+        <label>303 Volume</label>
+        <input type="range" id="b303Vol" min="0" max="1" step="0.01" value="0.9" />
+      </div>
+      <div class="control">
+        <label>303 Reso</label>
+        <input type="range" id="b303Reso" min="0.1" max="18" step="0.1" value="8" />
+      </div>
+      <div class="control">
+        <label>303 Slide</label>
+        <input type="range" id="b303Slide" min="0" max="0.25" step="0.005" value="0.06" />
+      </div>
+      <div class="control">
+        <label>303 Accent</label>
+        <input type="range" id="b303Accent" min="0" max="1" step="0.01" value="0.35" />
+      </div>
+      <div class="control">
+        <label>WT Volume</label>
+        <input type="range" id="wtVol" min="0" max="1" step="0.01" value="0.8" />
+      </div>
+      <div class="control">
+        <label>WT Morph</label>
+        <input type="range" id="wtMorph" min="0" max="1" step="0.01" value="0.4" />
+      </div>
+      <div class="control">
+        <label>WT Hold (s)</label>
+        <input type="range" id="wtHold" min="0.05" max="0.7" step="0.01" value="0.25" />
+      </div>
+    </div>
+
+    <!-- Independent Arranger -->
+    <div class="arranger">
+      <div class="arr-toolbar">
+        <button id="arrPlay" class="btn primary">▶ TL Play</button>
+        <button id="arrStop" class="btn danger">■ TL Stop</button>
+        <span class="len">Length: <b id="lenLabel">00:30</b> (drag handle)</span>
+      </div>
+      <div class="arr-wrap" id="arrWrap">
+        <div class="arr-axis" id="arrAxis"></div>
+        <div class="arr-track" id="arrTrack"></div>
+        <div class="arr-playhead" id="arrPlayhead"></div>
+        <div class="arr-limit" id="arrLimit" title="Drag to set length"></div>
+      </div>
+      <div class="inline-help">Двоен клик върху клип = изтриване. Плъзгане = местене. TL Play/Stop управляват аранжера. Лейнове: 1) Chords/Notes, 2) Bass303, 3) Wavetable, 4) Drums, 5) Pads.</div>
+    </div>
+
+    <div class="footer">Всички инструменти записват в отделни лейнове при включен <span class="kbd">Arm TL Rec</span>. Записът работи с MediaRecorder (ако е наличен) или чрез вътрешен WAV записвач.</div>
+  </section>
+
+  <section class="panel">
+    <h2>Drum Machine &amp; MPC</h2>
+    <div class="row">
+      <div class="control">
+        <label>Master Volume</label>
+        <input type="range" id="masterVol" min="0" max="1" step="0.01" value="0.8" />
+      </div>
+      <div class="control">
+        <label>Chorus Amount</label>
+        <input type="range" id="chorusMix" min="0" max="0.8" step="0.01" value="0.25" />
+      </div>
+      <div class="control">
+        <label>Cutoff</label>
+        <input type="range" id="cutoff" min="200" max="8000" step="1" value="2200" />
+      </div>
+      <div class="control">
+        <label>Resonance (Q)</label>
+        <input type="range" id="reso" min="0.1" max="18" step="0.1" value="0.5" />
+      </div>
+    </div>
+    <div class="row">
+      <div class="control"><label>Kick/Snare/Hat/Clap</label><small style="color:#8aa0b7">16‑step решетка</small></div>
+    </div>
+    <div class="drum-grid" id="drumGrid" style="display:grid;grid-template-columns: 100px repeat(16, 1fr);gap:6px;padding:8px;background:var(--panel-2);border-radius:12px;border:1px solid #1a263b"></div>
+
+    <h2>MPC Sampler Pads</h2>
+    <div class="pads" id="mpcPads" style="display:grid;grid-template-columns: repeat(4, 1fr);gap:10px;padding:10px"></div>
+    <div class="pad-tools" id="padTools" style="display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 10px 10px"></div>
+    <div class="footer">Pads и Drums също записват в лейновете си при Arm TL Rec.</div>
+  </section>
+</main>
+
+<script>
+/* ================== Audio Core ================== */
+const Audio = (()=>{
+  const ctx = new (window.AudioContext||window.webkitAudioContext)();
+  const master = ctx.createGain(); master.gain.value=0.8; master.connect(ctx.destination);
+  const tapBus = ctx.createGain(); tapBus.gain.value = 1.0; master.connect(tapBus); // for recorder
+  const dryBus = ctx.createGain(); dryBus.gain.value=0.75; dryBus.connect(master);
+  const chorusBus = ctx.createGain(); chorusBus.gain.value=0.25;
+  const chorusDelay = ctx.createDelay(0.05);
+  const lfo = ctx.createOscillator(); const lfoGain=ctx.createGain(); lfoGain.gain.value=0.004; lfo.frequency.value=0.8; lfo.connect(lfoGain).connect(chorusDelay.delayTime);
+  chorusBus.connect(chorusDelay).connect(master); lfo.start();
+  const params = { cutoff:2200, reso:.5 };
+  function setMasterVol(v){ master.gain.value=v; }
+  function setChorusMix(v){ chorusBus.gain.value=v; }
+  function setFilterCutoff(v){ params.cutoff=v; }
+  function setFilterQ(v){ params.q=v; params.reso=v; }
+
+  function playVoice({freq=220,time=ctx.currentTime,dur=0.25,vel=0.9}){
+    const osc = ctx.createOscillator(); osc.type="sawtooth"; osc.frequency.setValueAtTime(freq,time);
+    const filt = ctx.createBiquadFilter(); filt.type="lowpass"; filt.frequency.setValueAtTime(params.cutoff,time); filt.Q.setValueAtTime(params.reso??0.5,time);
+    const env = ctx.createGain(); env.gain.setValueAtTime(0.0001,time);
+    const A=0.005,D=Math.min(.4,dur*.6),S=0.25,R=0.12;
+    env.gain.linearRampToValueAtTime(vel,time+A);
+    env.gain.linearRampToValueAtTime(vel*S,time+A+D);
+    env.gain.linearRampToValueAtTime(0.0001,time+dur+R);
+    const dryTap=ctx.createGain(); const chTap=ctx.createGain(); dryTap.gain.value=1; chTap.gain.value=1;
+    osc.connect(filt).connect(env); env.connect(dryTap).connect(dryBus); env.connect(chTap).connect(chorusBus);
+    osc.start(time); osc.stop(time+dur+0.2);
+    osc.onended=()=>{try{osc.disconnect();filt.disconnect();env.disconnect();dryTap.disconnect();chTap.disconnect();}catch{}}
+  }
+
+  /* Drums */
+  function kick(time=ctx.currentTime, vel=1.0){
+    const osc=ctx.createOscillator(), env=ctx.createGain();
+    osc.type="sine"; osc.frequency.setValueAtTime(140,time); osc.frequency.exponentialRampToValueAtTime(40,time+0.12);
+    env.gain.setValueAtTime(0.0001,time); env.gain.exponentialRampToValueAtTime(vel,time+0.002); env.gain.exponentialRampToValueAtTime(0.0001,time+0.25);
+    osc.connect(env).connect(dryBus); osc.start(time); osc.stop(time+0.26);
+    osc.onended=()=>{try{osc.disconnect();env.disconnect();}catch{}}
+  }
+  function snare(time=ctx.currentTime, vel=0.8){
+    const size=2*ctx.sampleRate, buf=ctx.createBuffer(1,size,ctx.sampleRate), data=buf.getChannelData(0);
+    for(let i=0;i<size;i++) data[i]=Math.random()*2-1;
+    const src=ctx.createBufferSource(); src.buffer=buf; const bp=ctx.createBiquadFilter(); bp.type="bandpass"; bp.frequency.value=1800; bp.Q.value=0.6;
+    const env=ctx.createGain(); env.gain.setValueAtTime(0.0001,time); env.gain.exponentialRampToValueAtTime(vel,time+0.002); env.gain.exponentialRampToValueAtTime(0.0001,time+0.18);
+    src.connect(bp).connect(env).connect(dryBus); src.start(time); src.stop(time+0.2);
+    src.onended=()=>{try{src.disconnect();bp.disconnect();env.disconnect();}catch{}}
+  }
+  function hat(time=ctx.currentTime, vel=0.6){
+    const size=1*ctx.sampleRate, buf=ctx.createBuffer(1,size,ctx.sampleRate), data=buf.getChannelData(0);
+    for(let i=0;i<size;i++) data[i]=(Math.random()*2-1)*0.7;
+    const src=ctx.createBufferSource(); src.buffer=buf; const hp=ctx.createBiquadFilter(); hp.type="highpass"; hp.frequency.value=7000;
+    const env=ctx.createGain(); env.gain.setValueAtTime(0.0001,time); env.gain.exponentialRampToValueAtTime(vel,time+0.001); env.gain.exponentialRampToValueAtTime(0.0001,time+0.06);
+    src.connect(hp).connect(env).connect(dryBus); src.start(time); src.stop(time+0.08);
+    src.onended=()=>{try{src.disconnect();hp.disconnect();env.disconnect();}catch{}}
+  }
+  function clap(time=ctx.currentTime, vel=0.65){ for(let i=0;i<3;i++){ snare(time+i*0.01, vel*0.55); } }
+
+  /* Sampler (pads) */
+  function createSampler(){
+    const slots = new Array(16).fill(null);
+    async function loadFromFile(i, file){ const arr=await file.arrayBuffer(); const buf=await ctx.decodeAudioData(arr); slots[i]={buffer:buf,name:file.name}; return true; }
+    function play(i,time=ctx.currentTime,vel=0.9){ const s=slots[i]; if(s&&s.buffer){ const src=ctx.createBufferSource(); const g=ctx.createGain(); g.gain.value=vel; src.buffer=s.buffer; src.connect(g).connect(dryBus); src.start(time); src.onended=()=>{try{src.disconnect();g.disconnect();}catch{}} } else { playVoice({freq:440+(i%4)*60,time,dur:.15,vel:.6}); } }
+    function name(i){ return slots[i]?.name || "Empty"; }
+    return { loadFromFile, play, name };
+  }
+
+  /* Bass 303 (mono) */
+  const B303 = (()=>{
+    let lastFreq = 110;
+    const vol = ctx.createGain(); vol.gain.value=0.9; vol.connect(dryBus);
+    function setVol(v){ vol.gain.value=v; }
+    function trig({freq=110, time=ctx.currentTime, dur=0.25, slide=0.06, reso=8, accent=0.35}){
+      const osc=ctx.createOscillator(); osc.type="sawtooth";
+      const filt=ctx.createBiquadFilter(); filt.type="lowpass"; filt.Q.value=reso;
+      const env=ctx.createGain(); env.gain.value=0.0001;
+      const fEnv=ctx.createGain(); fEnv.gain.value=0; // filter envelope amount
+      // base cutoff
+      const baseCut = 900 + accent*700; // accent opens filter
+      const targetCut = baseCut + 1200*accent;
+      filt.frequency.setValueAtTime(baseCut, time);
+      // filter env
+      fEnv.gain.setValueAtTime(0, time);
+      fEnv.gain.linearRampToValueAtTime(1, time+0.02);
+      fEnv.gain.exponentialRampToValueAtTime(0.001, time+dur*0.9);
+      // connect env to cutoff via AudioParam automation (approx)
+      const upd = (t, v)=> filt.frequency.linearRampToValueAtTime(Math.max(80, v), t);
+      upd(time, baseCut);
+      upd(time+0.02, targetCut);
+      upd(time+dur*0.9, baseCut);
+
+      // slide
+      const startFreq = lastFreq || freq;
+      osc.frequency.setValueAtTime(startFreq, time);
+      osc.frequency.linearRampToValueAtTime(freq, time+Math.max(0.001, slide));
+
+      // amp env
+      env.gain.setValueAtTime(0.0001,time);
+      env.gain.linearRampToValueAtTime(0.9+accent*0.4, time+0.005);
+      env.gain.exponentialRampToValueAtTime(0.001, time+dur*1.05);
+
+      osc.connect(filt).connect(env).connect(vol);
+      osc.start(time); osc.stop(time+dur*1.1);
+      osc.onended=()=>{ try{osc.disconnect();filt.disconnect();env.disconnect();}catch{} };
+      lastFreq = freq;
+    }
+    return { trig, setVol };
+  })();
+
+  /* Wavetable (morph/hold) */
+  const WT = (()=>{
+    const vol = ctx.createGain(); vol.gain.value=0.8; vol.connect(dryBus);
+    let morph = 0.4; let hold=0.25;
+    function setVol(v){ vol.gain.value=v; }
+    function setMorph(v){ morph = v; }
+    function setHold(v){ hold = v; }
+    function trig({freq=220, time=ctx.currentTime}){
+      const o1=ctx.createOscillator(); const o2=ctx.createOscillator();
+      o1.type="sawtooth"; o2.type="square";
+      o1.frequency.setValueAtTime(freq, time); o2.frequency.setValueAtTime(freq, time);
+      const g1=ctx.createGain(); const g2=ctx.createGain(); g1.gain.value=1-morph; g2.gain.value=morph;
+      const env=ctx.createGain(); env.gain.value=0.0001;
+      o1.connect(g1).connect(env); o2.connect(g2).connect(env); env.connect(vol);
+      env.gain.linearRampToValueAtTime(0.9, time+0.005);
+      env.gain.exponentialRampToValueAtTime(0.001, time+Math.max(0.06, hold));
+      o1.start(time); o2.start(time); o1.stop(time+hold+0.2); o2.stop(time+hold+0.2);
+      o2.onended=()=>{try{o1.disconnect();o2.disconnect();g1.disconnect();g2.disconnect();env.disconnect();}catch{}}
+    }
+    return { trig, setVol, setMorph, setHold };
+  })();
+
+  return { ctx, master, dryBus, chorusBus, tapBus, setMasterVol, setChorusMix, setFilterCutoff, setFilterQ, playVoice, kick, snare, hat, clap, createSampler, B303, WT };
+})();
+
+/* ============== Theory helpers ============== */
+const Theory = (()=>{
+  const noteMap={"C":0,"C#":1,"Db":1,"D":2,"D#":3,"Eb":3,"E":4,"F":5,"F#":6,"Gb":6,"G":7,"G#":8,"Ab":8,"A":9,"A#":10,"Bb":10,"B":11};
+  function freq(name="C4"){ const m=/^([A-G][#b]?)(-?\d)$/.exec(name); if(!m) return 440; const n=noteMap[m[1]]??0; const oct=parseInt(m[2],10); const midi=12*(oct+1)+n; return 440*Math.pow(2,(midi-69)/12); }
+  function chordToNotes(label="Am"){
+    const roots=["C","Db","D","Eb","E","F","Gb","G","Ab","A","Bb","B"];
+    let root=roots.find(r=>label.startsWith(r))||"C"; let q=label.slice(root.length).trim();
+    const baseMidi=12*(4+1)+{"C":0,"Db":1,"D":2,"Eb":3,"E":4,"F":5,"Gb":6,"G":7,"Ab":8,"A":9,"Bb":10,"B":11}[root];
+    const thirds = q.includes("m") && !q.includes("maj") ? 3 : 4;
+    const seventh = q.includes("maj7")? 11 : (q.includes("7")? 10 : null);
+    const sus2=/sus2/.test(q), sus4=/sus4/.test(q), add9=/add9/.test(q);
+    const notes=[]; if(sus2){ notes.push(baseMidi+2); } else if(sus4){ notes.push(baseMidi+5); } else { notes.push(baseMidi+thirds); }
+    notes.push(baseMidi); notes.push(baseMidi+7); if(seventh!==null) notes.push(baseMidi+seventh); if(add9) notes.push(baseMidi+14);
+    return notes.map(m=>440*Math.pow(2,(m-69)/12));
+  }
+  const pitchChoices = (()=>{
+    const octaves=[2,3,4]; const keys=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    const arr=[]; for(const o of octaves){ for(const k of keys){ arr.push(k+o); } } return arr;
+  })();
+  return { freq, chordToNotes, pitchChoices };
+})();
+
+/* ============== UI (steps, drums, pads, 303, WT) ============== */
+const UI = (()=>{
+  const stepsEl = document.getElementById('steps');
+  const playheadEl = document.getElementById('playhead');
+  const chordsRow = document.getElementById('chordsRow');
+  const armTl = document.getElementById('armTl');
+  const bpmEl = document.getElementById('bpm'); const bpmVal=document.getElementById('bpmVal'); bpmEl.addEventListener('input',()=> bpmVal.textContent=bpmEl.value);
+
+  /* main 8 steps */
+  const steps = Array.from({length:8},(_,i)=>{
+    const d=document.createElement('div'); d.className='step'; d.textContent=i+1;
+    d.addEventListener('click', ()=> d.classList.toggle('on'));
+    stepsEl.appendChild(d); return d;
+  });
+
+  /* chord selects */
+  const chordOptions=["C","Cm","Cmaj7","C7","C add9","C sus2","C sus4","D","Dm","Dmaj7","D7","D add9","D sus2","D sus4","E","Em","Emaj7","E7","E add9","E sus2","E sus4","F","Fm","Fmaj7","F7","F add9","F sus2","F sus4","G","Gm","Gmaj7","G7","G add9","G sus2","G sus4","A","Am","Amaj7","A7","A add9","A sus2","A sus4","B","Bm","Bmaj7","B7","B add9","B sus2","B sus4"];
+  const chords = Array.from({length:8},()=> "Am");
+  for(let i=0;i<8;i++){
+    const s=document.createElement('select'); chordOptions.forEach(opt=>{ const o=document.createElement('option'); o.value=o.textContent=opt; s.appendChild(o); });
+    s.value=chords[i]; s.addEventListener('change', ()=> chords[i]=s.value);
+    chordsRow.appendChild(s);
+  }
+
+  /* Bass 303 lane */
+  const bassCells = document.getElementById('bassCells');
+  const bassNotesRow = document.getElementById('bassNotesRow');
+  const bassSteps = Array.from({length:8},(_,i)=>{
+    const c=document.createElement('div'); c.className='cell'; c.textContent=i+1; c.addEventListener('click',()=> c.classList.toggle('on')); bassCells.appendChild(c); return c;
+  });
+  const bassNotes = Array.from({length:8},(_,i)=>{
+    const s=document.createElement('select');
+    Theory.pitchChoices.forEach(p=>{ const o=document.createElement('option'); o.value=o.textContent=p; s.appendChild(o); });
+    s.value = ["C2","E2","G2","A2","C3","E3","G2","A2"][i%8];
+    bassNotesRow.appendChild(s); return s;
+  });
+
+  /* Wavetable lane */
+  const wtCells = document.getElementById('wtCells');
+  const wtNotesRow = document.getElementById('wtNotesRow');
+  const wtSteps = Array.from({length:8},(_,i)=>{
+    const c=document.createElement('div'); c.className='cell'; c.textContent=i+1; c.addEventListener('click',()=> c.classList.toggle('on')); wtCells.appendChild(c); return c;
+  });
+  const wtNotes = Array.from({length:8},(_,i)=>{
+    const s=document.createElement('select');
+    Theory.pitchChoices.forEach(p=>{ const o=document.createElement('option'); o.value=o.textContent=p; s.appendChild(o); });
+    s.value = ["C3","D3","E3","G3","A3","B3","A3","G3"][i%8];
+    wtNotesRow.appendChild(s); return s;
+  });
+
+  /* Drums grid 4x16 */
+  const drumGrid = document.getElementById('drumGrid');
+  const drumNames=["Kick","Snare","Hat","Clap"];
+  const drumPattern={grid:Array.from({length:4},()=> Array(16).fill(false))};
+  for(let r=0;r<4;r++){
+    const name=document.createElement('div'); name.textContent=drumNames[r]; name.style.display='flex'; name.style.alignItems='center'; name.style.justifyContent='flex-end'; name.style.paddingRight='8px'; name.style.color='#9fadc1'; name.style.fontSize='12px'; drumGrid.appendChild(name);
+    for(let c=0;c<16;c++){
+      const cell=document.createElement('div'); cell.style.aspectRatio='1/1'; cell.style.border='1px solid #24324a'; cell.style.borderRadius='8px'; cell.style.background='linear-gradient(180deg,#0e1726,#0b1422)'; cell.style.cursor='pointer';
+      cell.addEventListener('click',()=>{ cell.classList.toggle('on'); cell.style.background = cell.classList.contains('on') ? 'linear-gradient(180deg,#183456,#14253f)' : 'linear-gradient(180deg,#0e1726,#0b1422)'; cell.style.borderColor = cell.classList.contains('on')? '#2b84c8' : '#24324a'; drumPattern.grid[r][c]=cell.classList.contains('on'); });
+      drumGrid.appendChild(cell);
+    }
+  }
+
+  /* Pads + file loaders */
+  const sampler = Audio.createSampler();
+  const padGrid=document.getElementById('mpcPads'); const padTools=document.getElementById('padTools');
+  for(let i=0;i<16;i++){
+    const pad=document.createElement('div'); pad.className='pad'; pad.style.aspectRatio='1/1'; pad.style.borderRadius='16px'; pad.style.background='linear-gradient(180deg,#141f31,#0f1827)'; pad.style.border='1px solid #22324b'; pad.style.display='flex'; pad.style.alignItems='center'; pad.style.justifyContent='center'; pad.style.fontWeight='700'; pad.style.color='#c7d8ef'; pad.style.fontSize='14px'; pad.style.cursor='pointer'; pad.style.transition='transform .05s, box-shadow .2s';
+    pad.innerHTML=(i+1)+'<small id="padName'+i+'" style="display:block;font-weight:400;color:#8ea3bd"></small>';
+    pad.addEventListener('mousedown', ()=>{ sampler.play(i); if(armTl.checked){ Arranger.record({type:'pad', index:i, dur:0.4}); } });
+    pad.addEventListener('touchstart', (e)=>{ e.preventDefault(); sampler.play(i); if(armTl.checked){ Arranger.record({type:'pad', index:i, dur:0.4}); } }, {passive:false});
+    padGrid.appendChild(pad);
+    const file=document.createElement('input'); file.type='file'; file.accept='audio/*'; file.className='file';
+    file.addEventListener('change', async()=>{ if(file.files[0]){ await sampler.loadFromFile(i,file.files[0]); document.getElementById('padName'+i).textContent=sampler.name(i); } });
+    padTools.appendChild(file);
+  }
+
+  /* Param bindings */
+  document.getElementById('bpmVal').textContent=bpmEl.value;
+  document.getElementById('b303Vol').addEventListener('input', e=> Audio.B303.setVol(parseFloat(e.target.value)));
+  document.getElementById('b303Reso').addEventListener('input', e=> window.__b303Reso=parseFloat(e.target.value));
+  document.getElementById('b303Slide').addEventListener('input', e=> window.__b303Slide=parseFloat(e.target.value));
+  document.getElementById('b303Accent').addEventListener('input', e=> window.__b303Accent=parseFloat(e.target.value));
+  window.__b303Reso=8; window.__b303Slide=0.06; window.__b303Accent=0.35;
+
+  document.getElementById('wtVol').addEventListener('input', e=> Audio.WT.setVol(parseFloat(e.target.value)));
+  document.getElementById('wtMorph').addEventListener('input', e=> Audio.WT.setMorph(parseFloat(e.target.value)));
+  document.getElementById('wtHold').addEventListener('input', e=> Audio.WT.setHold(parseFloat(e.target.value)));
+
+  /* Expose */
+  return { steps, chords, bassSteps, bassNotes, wtSteps, wtNotes, drumPattern, sampler, armTl, playheadEl };
+})();
+
+/* ============== Transport ============== */
+const Transport = (()=>{
+  const S={running:false, stepIndex:0, timer:null};
+  function stepMs(){ return 60000 / parseInt(document.getElementById('bpm').value,10) / 2; } // 8ths
+  function start(){ Audio.ctx.resume(); if(S.running) return; S.running=true; S.stepIndex=0; tick(); }
+  function stop(){ if(!S.running) return; S.running=false; if(S.timer){ clearTimeout(S.timer); S.timer=null; } }
+  function scheduleNext(){ if(!S.running) return; const ms=stepMs(); S.timer=setTimeout(tick, ms); }
+
+  function tick(){
+    if(!S.running) return;
+    const ms=stepMs(); const t=Audio.ctx.currentTime; const i=S.stepIndex;
+    UI.playheadEl.style.left = ((i/8)*100)+'%';
+    // Main chord lane
+    if(UI.steps[i].classList.contains('on')){
+      const ns=Theory.chordToNotes(UI.chords[i]);
+      ns.forEach(f=>{ Audio.playVoice({freq:f,time:t,dur:ms/1000*0.9,vel:0.85}); if(Arranger.isArmed()) Arranger.record({type:'note', freq:f, dur:ms/1000*0.9, lane:'chord'}); });
+    }
+    // Bass 303 lane
+    if(UI.bassSteps[i].classList.contains('on')){
+      const f=Theory.freq(UI.bassNotes[i].value);
+      Audio.B303.trig({freq:f,time:t,dur:ms/1000*0.95,slide:window.__b303Slide,reso:window.__b303Reso,accent:window.__b303Accent});
+      if(Arranger.isArmed()) Arranger.record({type:'bass303', freq:f, dur:ms/1000*0.95, lane:'bass303'});
+    }
+    // WT lane
+    if(UI.wtSteps[i].classList.contains('on')){
+      const f=Theory.freq(UI.wtNotes[i].value);
+      Audio.WT.trig({freq:f,time:t});
+      if(Arranger.isArmed()) Arranger.record({type:'wt', freq:f, dur:parseFloat(document.getElementById('wtHold').value), lane:'wt'});
+    }
+    // Drums (map 16 to 8ths)
+    const col=i*2;
+    if(UI.drumPattern.grid[0][col]){ Audio.kick(t,1.0); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Kick', dur:0.1, lane:'drums'}); }
+    if(UI.drumPattern.grid[1][col]){ Audio.snare(t,0.85); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Snare', dur:0.1, lane:'drums'}); }
+    if(UI.drumPattern.grid[2][col]){ Audio.hat(t,0.6); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Hat', dur:0.06, lane:'drums'}); }
+    if(UI.drumPattern.grid[3][col]){ Audio.clap(t,0.65); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Clap', dur:0.12, lane:'drums'}); }
+
+    S.stepIndex = (S.stepIndex+1)%8;
+    scheduleNext();
+  }
+  return { start, stop };
+})();
+
+/* ============== Arranger (multi-lane with loop) ============== */
+const Arranger = (()=>{
+  const wrap=document.getElementById('arrWrap'); const axis=document.getElementById('arrAxis'); const track=document.getElementById('arrTrack');
+  const playhead=document.getElementById('arrPlayhead'); const limit=document.getElementById('arrLimit'); const lenLabel=document.getElementById('lenLabel'); const arm=document.getElementById('armTl');
+  const laneNames=["Chords/Notes","Bass303","Wavetable","Drums","Pads"];
+  const laneMap={chord:0,bass303:1,wt:2,drums:3,pad:4, note:0};
+  let pxPerSec=80, lenSec=30, lastLocal=0, playing=false, startTime=0;
+  const events=[];
+  let recActive=false, recStart=0;
+
+  function drawAxis(){
+    axis.innerHTML='';
+    const total=Math.ceil(lenSec);
+    for(let s=0;s<=total;s+=1){
+      const x=s*pxPerSec; const tick=document.createElement('div'); tick.style.position='absolute'; tick.style.top=0; tick.style.bottom=0; tick.style.left=x+'px'; tick.style.borderLeft='1px solid #1e2a3d'; axis.appendChild(tick);
+      const lab=document.createElement('div'); lab.style.position='absolute'; lab.style.left=x+'px'; lab.style.top='0'; lab.style.transform='translate(-50%,0)'; lab.style.fontSize='10px'; lab.style.color='#7e91a9'; const mm=(''+Math.floor(s/60)).padStart(2,'0'); const ss=(''+Math.floor(s%60)).padStart(2,'0'); lab.textContent=mm+':'+ss; axis.appendChild(lab);
+    }
+    // lane labels + separators
+    track.innerHTML='';
+    for(let i=0;i<laneNames.length;i++){
+      const sep=document.createElement('div'); sep.className='laneGrid'; sep.style.top = (i*36)+'px'; track.appendChild(sep);
+      const lab=document.createElement('div'); lab.className='laneLabel'; lab.style.top = (i*36+2)+'px'; lab.textContent=laneNames[i]; track.appendChild(lab);
+    }
+    limit.style.left=(lenSec*pxPerSec - limit.offsetWidth/2)+'px';
+    lenLabel.textContent = fmt(lenSec);
+    // redraw events
+    for(const ev of events){ if(!ev.__drawn){ drawEvent(ev); } }
+  }
+  function fmt(sec){ const m=Math.floor(sec/60), s=Math.floor(sec%60); return (m+'').padStart(2,'0')+':'+(s+'').padStart(2,'0'); }
+
+  function play(){ if(playing) return; Audio.ctx.resume(); playing=true; startTime=Audio.ctx.currentTime; lastLocal=0; requestAnimationFrame(raf); }
+  function stop(){ playing=false; }
+  function raf(){
+    if(!playing) return;
+    const now=Audio.ctx.currentTime; let local=(now-startTime) % lenSec;
+    const from=lastLocal, to=local;
+    if(to<from){ schedule(from,lenSec); schedule(0,to); } else { schedule(from,to); }
+    lastLocal=local; playhead.style.left=(local*pxPerSec)+'px'; requestAnimationFrame(raf);
+  }
+  function schedule(a,b){
+    const now=Audio.ctx.currentTime;
+    for(const ev of events){
+      if(ev.t>=a && ev.t<b){
+        const dt = ev.t - ((now-startTime)%lenSec);
+        const when = now + Math.max(0, dt);
+        trigger(ev, when);
+      }
+    }
+  }
+  function trigger(ev, when){
+    if(ev.type==='note'){ Audio.playVoice({freq:ev.freq,time:when,dur:ev.dur||0.25,vel:0.9}); }
+    else if(ev.type==='bass303'){ Audio.B303.trig({freq:ev.freq,time:when,dur:ev.dur||0.25,slide:window.__b303Slide,reso:window.__b303Reso,accent:window.__b303Accent}); }
+    else if(ev.type==='wt'){ Audio.WT.trig({freq:ev.freq,time:when}); }
+    else if(ev.type==='drums'){ if(ev.label==='Kick') Audio.kick(when,1.0); else if(ev.label==='Snare') Audio.snare(when,0.85); else if(ev.label==='Hat') Audio.hat(when,0.6); else if(ev.label==='Clap') Audio.clap(when,0.65); }
+    else if(ev.type==='pad'){ UI && UI.sampler && UI.sampler.play(ev.index, when, 0.9); }
+  }
+
+  function isArmed(){ return arm.checked; }
+  function record(obj){
+    if(!isArmed()) return;
+    const now=Audio.ctx.currentTime;
+    const local = (!playing ? ((recActive?0:(recStart=now, recActive=true)), (now-recStart)%lenSec) : ((now-startTime)%lenSec));
+    const ev = { t: local, ...obj };
+    events.push(ev); drawEvent(ev);
+  }
+
+  function drawEvent(ev){
+    const el=document.createElement('div'); el.className = 'arr-event '+(ev.type||''); el.textContent = ev.type==='drums' ? (ev.label||'drum') : (ev.type||'ev');
+    const w=Math.max(10, (ev.dur||0.25)*pxPerSec);
+    const laneIndex = laneMap[ev.lane || ev.type] ?? 0;
+    el.style.left=(ev.t*pxPerSec)+'px'; el.style.width=w+'px'; el.style.top=(laneIndex*36+8)+'px';
+    // interactions
+    el.addEventListener('dblclick', ()=>{ if(el.parentNode) el.parentNode.removeChild(el); const idx=events.indexOf(ev); if(idx>-1) events.splice(idx,1); });
+    let drag=false,sx=0,sl=0;
+    el.addEventListener('mousedown', (e)=>{ drag=true; sx=e.clientX; sl=parseFloat(el.style.left)||0; e.preventDefault(); });
+    window.addEventListener('mousemove', (e)=>{ if(!drag) return; const dx=e.clientX-sx; const nx=Math.max(0, Math.min(lenSec*pxPerSec - w, sl+dx)); el.style.left=nx+'px'; ev.t = nx/pxPerSec; });
+    window.addEventListener('mouseup', ()=> drag=false);
+    track.appendChild(el); ev.__drawn=true;
+  }
+
+  // limit handle drag
+  (function setupLimit(){
+    let drag=false, sx=0, sl=0;
+    limit.addEventListener('mousedown', (e)=>{ drag=true; sx=e.clientX; sl=parseFloat(limit.style.left)||(lenSec*pxPerSec); e.preventDefault(); });
+    window.addEventListener('mousemove', (e)=>{
+      if(!drag) return;
+      const dx=e.clientX-sx; const nx=Math.max(40, Math.min(wrap.clientWidth-4, sl+dx));
+      limit.style.left=nx+'px'; lenSec=Math.max(5, nx/pxPerSec); lenLabel.textContent=fmt(lenSec); drawAxis();
+    });
+    window.addEventListener('mouseup', ()=> drag=false);
+  })();
+
+  window.addEventListener('resize', drawAxis);
+  drawAxis();
+
+  return { play:()=>play(), stop:()=>stop(), isArmed, record };
+})();
+
+/* TL controls */
+document.getElementById('startBtn').addEventListener('click', ()=> Transport.start());
+document.getElementById('stopBtn').addEventListener('click', ()=> Transport.stop());
+document.getElementById('arrPlay').addEventListener('click', ()=> Arranger.play());
+document.getElementById('arrStop').addEventListener('click', ()=> Arranger.stop());
+
+/* Mixer params */
+document.getElementById('masterVol').addEventListener('input', e=> Audio.setMasterVol(parseFloat(e.target.value)));
+document.getElementById('chorusMix').addEventListener('input', e=> Audio.setChorusMix(parseFloat(e.target.value)));
+document.getElementById('cutoff').addEventListener('input', e=> Audio.setFilterCutoff(parseFloat(e.target.value)));
+document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(parseFloat(e.target.value)));
+
+/* ============== Recorder ============== */
+(function Recorder(){
+  const status = document.getElementById('recStatus');
+  const btnRec=document.getElementById('recBtn'); const btnStop=document.getElementById('stopRecBtn'); const btnWav=document.getElementById('dlWavBtn'); const btnWebm=document.getElementById('dlWebmBtn');
+  let rec=false, mediaRec=null, chunks=[], wavBuffers=null, proc=null;
+
+  // Fallback WAV via ScriptProcessor
+  function startWavFallback(){
+    const ctx=Audio.ctx;
+    const bufferLen=4096; const channelData=[[],[]];
+    const sp = ctx.createScriptProcessor(bufferLen, 2, 2);
+    Audio.tapBus.connect(sp); sp.connect(ctx.destination); // monitor too
+    sp.onaudioprocess = e=>{
+      if(!rec) return;
+      const L = e.inputBuffer.getChannelData(0).slice(0);
+      const R = e.inputBuffer.getChannelData(1).slice(0);
+      channelData[0].push(L); channelData[1].push(R);
+    };
+    proc = sp;
+    wavBuffers = channelData;
+  }
+  function stopWavFallback(){
+    if(proc){ try{proc.disconnect();}catch{} proc=null; }
+  }
+  function interleave(left,right){
+    const len=left.length+right.length; const out=new Float32Array(len); let i=0,j=0;
+    for(let k=0;k<len;){ out[k++]=left[i]; out[k++]=right[j]; i++; j++; }
+    return out;
+  }
+  function mergeBuffers(chunks){
+    const len = chunks.reduce((a,b)=>a+b.length,0); const out=new Float32Array(len); let off=0;
+    for(const b of chunks){ out.set(b, off); off+=b.length; } return out;
+  }
+  function floatTo16BitPCM(float32){
+    const buffer = new ArrayBuffer(float32.length * 2); const view = new DataView(buffer);
+    let offset=0;
+    for(let i=0;i<float32.length;i++,offset+=2){
+      let s = Math.max(-1, Math.min(1, float32[i]));
+      view.setInt16(offset, s<0 ? s*0x8000 : s*0x7FFF, true);
+    }
+    return view;
+  }
+  function writeWav(interleaved, sampleRate){
+    const dataSize = interleaved.length*2;
+    const buffer = new ArrayBuffer(44 + dataSize); const view=new DataView(buffer);
+    function writeStr(o,s){ for(let i=0;i<s.length;i++) view.setUint8(o+i, s.charCodeAt(i)); }
+    let o=0; writeStr(o,"RIFF"); o+=4; view.setUint32(o,36+dataSize,true); o+=4; writeStr(o,"WAVE"); o+=4;
+    writeStr(o,"fmt "); o+=4; view.setUint32(o,16,true); o+=4; view.setUint16(o,1,true); o+=2; view.setUint16(o,2,true); o+=2;
+    view.setUint32(o,sampleRate,true); o+=4; view.setUint32(o,sampleRate*4,true); o+=4; view.setUint16(o,4,true); o+=2; view.setUint16(o,16,true); o+=2;
+    writeStr(o,"data"); o+=4; view.setUint32(o,dataSize,true); o+=4;
+    const pcm = floatTo16BitPCM(interleaved); // copy data
+    new Uint8Array(buffer,44).set(new Uint8Array(pcm.buffer));
+    return new Blob([buffer], {type:"audio/wav"});
+  }
+
+  btnRec.addEventListener('click', ()=>{
+    Audio.ctx.resume();
+    if(rec) return;
+    rec=true; status.textContent="Recording...";
+    chunks=[]; wavBuffers=null;
+    if(window.MediaRecorder){
+      const dest = Audio.ctx.createMediaStreamDestination();
+      Audio.master.connect(dest); // tap master to stream
+      mediaRec = new MediaRecorder(dest.stream);
+      mediaRec.ondataavailable = e=>{ if(e.data.size>0) chunks.push(e.data); };
+      mediaRec.onstop = ()=>{ btnWebm.style.display = chunks.length? 'inline-block' : 'none'; };
+      mediaRec.start(100);
+      // also start fallback WAV in parallel for guaranteed WAV
+      startWavFallback();
+    }else{
+      // Only fallback WAV
+      startWavFallback();
+    }
+  });
+
+  btnStop.addEventListener('click', ()=>{
+    if(!rec) return;
+    rec=false; status.textContent="Stopped.";
+    if(mediaRec && mediaRec.state!=="inactive"){ mediaRec.stop(); }
+    stopWavFallback();
+  });
+
+  btnWav.addEventListener('click', ()=>{
+    if(!wavBuffers || !wavBuffers[0].length){ alert("Няма буфери за WAV – запиши и спри първо."); return; }
+    const L = mergeBuffers(wavBuffers[0]); const R = mergeBuffers(wavBuffers[1]);
+    const inter = interleave(L, R);
+    const wav = writeWav(inter, Audio.ctx.sampleRate);
+    const url = URL.createObjectURL(wav);
+    const a=document.createElement('a'); a.href=url; a.download='session.wav'; a.click(); URL.revokeObjectURL(url);
+  });
+
+  btnWebm.addEventListener('click', ()=>{
+    if(!chunks || !chunks.length){ alert("Няма WebM – вероятно MediaRecorder не е наличен."); return; }
+    const webm = new Blob(chunks, {type: chunks[0].type || "audio/webm"});
+    const url = URL.createObjectURL(webm);
+    const a=document.createElement('a'); a.href=url; a.download='session.webm'; a.click(); URL.revokeObjectURL(url);
+  });
+})();
+</script>
+
+<div class="mobile-nav" role="navigation" aria-label="Mobile navigation">
+  <button data-page="studio" id="navStudio">Studio</button>
+  <button data-page="timeline" id="navTimeline">Timeline</button>
+  <button data-page="arranger" id="navArranger">Arranger</button>
+  <button data-page="drums" id="navDrums">Drums</button>
+</div>
+
+
+<script>
+(function(){
+  const key = "sms_active_page_css_only"; // CSS-only pages now
+  const body = document.body;
+  function setPage(p){
+    body.setAttribute("data-page", p);
+    try{ localStorage.setItem(key, p); }catch(e){}
+    document.querySelectorAll('.mobile-nav button').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.page === p);
+    });
+  }
+  const saved = 'studio'; setPage(saved);
+  const byId = (id)=> document.getElementById(id);
+  byId('navStudio').addEventListener('click', ()=> setPage('studio'));
+  byId('navTimeline').addEventListener('click', ()=> setPage('timeline'));
+  byId('navArranger').addEventListener('click', ()=> setPage('arranger'));
+  byId('navDrums').addEventListener('click', ()=> setPage('drums'));
+  // Allow hash navigation too (#timeline, #arranger, #drums, #studio)
+  function applyHash(){ const h=(location.hash||'').replace('#',''); if(['studio','timeline','arranger','drums'].includes(h)) setPage(h); }
+  window.addEventListener('hashchange', applyHash); applyHash();
+})();
+</script>
+
+
+<script>
+(function(){
+  function syncButtons(p){
+    document.querySelectorAll('.mobile-nav button, .top-tabs button').forEach(btn=>{
+      btn.classList.toggle('active', btn.dataset.page===p);
+    });
+  }
+  function getSetter(){
+    // use existing function injected earlier
+    return (p)=>{
+      document.body.setAttribute('data-page', p);
+      try{ localStorage.setItem('sms_active_page', p); }catch(e){}
+      syncButtons(p);
+    };
+  }
+  const setPage = getSetter();
+  // Attach events for top tabs
+  const map = {
+    tabStudio:'studio', tabTimeline:'timeline', tabArranger:'arranger', tabDrums:'drums',
+    navStudio:'studio', navTimeline:'timeline', navArranger:'arranger', navDrums:'drums'
+  };
+  Object.keys(map).forEach(id=>{
+    const el = document.getElementById(id);
+    if(el) el.addEventListener('click', ()=> setPage(map[id]));
+  });
+  // Init default again to ensure sync
+  setPage('studio');
+  // Apply hash if present
+  const h=(location.hash||'').replace('#','');
+  if(['studio','timeline','arranger','drums'].includes(h)){ setPage(h); }
+})();
+</script>
+
+
+<!-- CSS-only navigation -->
+<nav class="mobile-nav-links" aria-label="Mobile pages">
+  <a href="#studio">Studio</a>
+  <a href="#timeline">Timeline</a>
+  <a href="#arranger">Arranger</a>
+  <a href="#drums">Drums</a>
+</nav>
+
+</body>
+</html>
