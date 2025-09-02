@@ -1006,87 +1006,528 @@ document.getElementById('reso').addEventListener('input', e=> Audio.setFilterQ(p
 </nav>
 
 
-<!-- === UPGRADE CORE: Chord Modal + Add/Remove Step + Arp/Note-Repeat + Patch Save/Load + Extended Transport === -->
+<!-- === UPGRADE: Chord Modal + Add Step + Arp/Note-Repeat + Patch Save/Load (non-destructive) === -->
 <style>
-.modal.upgrade{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(0,0,0,.55);z-index:9999}
-.modal.upgrade.active{display:flex}
-.modal.upgrade .card{width:min(720px,96vw);max-height:86vh;overflow:auto;background:#0f1725;color:#d8e1ee;border:1px solid #1a263b;border-radius:12px;box-shadow:0 12px 40px rgba(0,0,0,.45);padding:16px}
-.modal.upgrade .grid{display:grid;grid-template-columns:repeat(8,minmax(0,1fr));gap:8px}
-.modal.upgrade .cell{padding:10px 8px;border:1px solid #243a59;border-radius:10px;text-align:center;cursor:pointer;user-select:none;background:linear-gradient(180deg,#0e1a2a,#0b1422)}
-.modal.upgrade .cell:hover{border-color:#2f8ac9}
-.badge.upgrade{background:#162236;color:#9fb9de;border:1px solid #243a59;border-radius:8px;padding:4px 8px;font-size:12px}
-.control.upgrade{display:inline-flex;flex-direction:column;gap:4px;margin-right:12px;margin-bottom:8px}
-.btn.upgrade{background:#17263c;border:1px solid #2b415f;color:#cfe0ff;border-radius:8px;padding:6px 10px;cursor:pointer}
-.btn.upgrade.primary{background:#1f3352;border-color:#355481}
-.btn.upgrade.danger{background:#3a1a1a;border-color:#6b2f2f}
-.btn.upgrade.ghost{background:transparent;border:1px dashed #2b415f;color:#9fb9de}
-.row.upgrade{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0}
-.chords-under-arp{margin-top:10px}
+/* Minimal styles for modal & grids — appended to avoid touching existing CSS */
+.modal.upgrade { position: fixed; inset: 0; display: none; align-items: center; justify-content: center; background: rgba(0,0,0,.55); z-index: 9999; }
+.modal.upgrade.active { display: flex; }
+.modal.upgrade .card { width: min(720px, 96vw); max-height: 86vh; overflow: auto; background: #0f1725; color: #d8e1ee; border: 1px solid #1a263b; border-radius: 12px; box-shadow: 0 12px 40px rgba(0,0,0,.45); padding: 16px; }
+.modal.upgrade .grid { display: grid; grid-template-columns: repeat(8, minmax(0, 1fr)); gap: 8px; }
+.modal.upgrade .cell { padding: 10px 8px; border: 1px solid #243a59; border-radius: 10px; text-align: center; cursor: pointer; user-select: none; background: linear-gradient(180deg, #0e1a2a, #0b1422); }
+.modal.upgrade .cell:hover { border-color: #2f8ac9; }
+.badge.upgrade { background: #162236; color: #9fb9de; border: 1px solid #243a59; border-radius: 8px; padding: 4px 8px; font-size: 12px; }
+.control.upgrade { display: inline-flex; flex-direction: column; gap: 4px; margin-right: 12px; margin-bottom: 8px; }
+.btn.upgrade { background: #17263c; border: 1px solid #2b415f; color: #cfe0ff; border-radius: 8px; padding: 6px 10px; cursor: pointer; }
+.btn.upgrade.primary { background: #1f3352; border-color: #355481; }
+.btn.upgrade.danger { background: #3a1a1a; border-color: #6b2f2f; }
+.row.upgrade { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin: 8px 0; }
 </style>
-<div class="modal upgrade" id="chordModal"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:700">Избор на акорд (12×8)</div><button id="closeChordModal" class="btn upgrade">Затвори</button></div><div class="row upgrade" style="margin-bottom:8px"><span class="badge upgrade">Съвет</span><small>Двоен клик върху който и да е Chord селект отваря този прозорец.</small></div><div id="modalGrid" class="grid"></div></div></div>
-<div class="modal upgrade" id="patchModal"><div class="card"><div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px"><div style="font-weight:700">Patch / Snapshot</div><button id="closePatchModal" class="btn upgrade">Затвори</button></div><div class="row upgrade"><button id="savePatch" class="btn upgrade primary">Save JSON</button><label class="btn upgrade" for="patchFile" style="cursor:pointer">Load JSON</label><input id="patchFile" type="file" accept="application/json" style="display:none" /></div><small>Записва: BPM, стъпки/акорди, 303/WT ноти и стъпки, Drum grid, основни параметри.</small></div></div>
-<script>
-(()=>{
-  const stepsEl=document.getElementById('steps');const chordsRow=document.getElementById('chordsRow');
-  if(!stepsEl||!chordsRow||typeof UI==='undefined'||!UI.steps||!UI.chords){console.warn('[Upgrade] base missing');return;}
-  const toolbar=document.createElement('div');toolbar.className='row upgrade';toolbar.innerHTML=`
-    <button id="addStep" class="btn upgrade primary" title="Добави нова стъпка за акорди">+ Step</button>
-    <button id="removeStep" class="btn upgrade danger" title="Премахни последната стъпка (минимум 1)">– Step</button>
-    <button id="openPatches" class="btn upgrade" title="Patch Save/Load">Patches</button>
-  `;stepsEl.parentElement.insertBefore(toolbar,stepsEl.nextSibling);
-  function updateGridlines(){const N=UI.steps.length;Array.from(stepsEl.querySelectorAll('.gridline')).forEach(n=>n.remove());for(let i=1;i<N;i++){const gl=document.createElement('div');gl.className='gridline';gl.style.left=((i/N)*100)+'%';stepsEl.appendChild(gl);}}
-  function cloneChordOptions(){const first=chordsRow.querySelector('select');if(first){return Array.from(first.options).map(o=>o.value);}const roots=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];const quals=["maj","min","maj7","min7","dom7","dim","aug","sus2"];const out=[];for(const r of roots){for(const q of quals){out.push(r+(q==="maj"?"":(q==="min"?"m":(q==="dom7"?"7":q))));}}return out;}
-  const chordOptionsCache=cloneChordOptions();
-  function addChordStep(def='Am'){const i=UI.steps.length;const d=document.createElement('div');d.className='step';d.textContent=(i+1);d.addEventListener('click',()=>d.classList.toggle('on'));stepsEl.appendChild(d);UI.steps.push(d);const s=document.createElement('select');chordOptionsCache.forEach(opt=>{const o=document.createElement('option');o.value=o.textContent=opt;s.appendChild(o);});s.value=def;s.addEventListener('change',()=>{UI.chords[i]=s.value;});chordsRow.appendChild(s);UI.chords.push(def);updateGridlines();}
-  document.getElementById('addStep').addEventListener('click',()=>addChordStep(UI.chords[UI.chords.length-1]||'Am'));
-  document.getElementById('removeStep').addEventListener('click',()=>{const stepCells=stepsEl.querySelectorAll('.step');const chordSelects=chordsRow.querySelectorAll('select');if(stepCells.length<=1||chordSelects.length<=1)return;chordSelects[chordSelects.length-1]?.remove();stepCells[stepCells.length-1]?.remove();if(window.UI){UI.steps.pop();UI.chords.pop();}updateGridlines();});
-  updateGridlines();
-  const chordModal=document.getElementById('chordModal');const modalGrid=document.getElementById('modalGrid');const closeChordModal=document.getElementById('closeChordModal');const roots=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];const quals=["maj","min","maj7","min7","dom7","dim","aug","sus2"];let targetSelect=null;modalGrid.style.gridTemplateColumns='repeat(8,minmax(0,1fr))';for(const r of roots){for(const q of quals){const cell=document.createElement('div');const label=q==="maj"?r:(q==="min"?(r+"m"):(q==="dom7"?(r+"7"):(r+" "+q)));cell.textContent=label;cell.className='cell';cell.addEventListener('click',()=>{if(targetSelect){targetSelect.value=label;targetSelect.dispatchEvent(new Event('change'));}chordModal.classList.remove('active');});modalGrid.appendChild(cell);}}
-  closeChordModal.addEventListener('click',()=>chordModal.classList.remove('active'));
-  function bindChordPickers(){Array.from(chordsRow.querySelectorAll('select')).forEach(sel=>{sel.addEventListener('dblclick',()=>{targetSelect=sel;chordModal.classList.add('active');});});}
-  bindChordPickers();new MutationObserver(bindChordPickers).observe(chordsRow,{childList:true});
-  const adv=document.createElement('div');adv.className='row upgrade';adv.innerHTML=`
-    <div class="control upgrade"><label>Arp On</label><input id="arpOn" type="checkbox"/></div>
-    <div class="control upgrade"><label>Arp Rate</label><select id="arpRate"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option><option value="32">1/32</option></select></div>
-    <div class="control upgrade"><label>Arp Dir</label><select id="arpDir"><option value="up">Up</option><option value="down">Down</option><option value="updown">Up-Down</option><option value="random">Random</option></select></div>
-    <div class="control upgrade"><label>Arp Oct</label><select id="arpOct"><option value="1" selected>×1</option><option value="2">×2</option><option value="3">×3</option></select></div>
-    <div class="control upgrade"><label>Gate</label><input id="arpGate" type="range" min="0.1" max="0.95" step="0.05" value="0.6"/></div>
-    <div class="control upgrade" style="margin-left:16px"><label>Note Repeat</label><input id="nrOn" type="checkbox"/></div>
-    <div class="control upgrade"><label>NR Rate</label><select id="nrRate"><option value="4">1/4</option><option value="8" selected>1/8</option><option value="16">1/16</option><option value="32">1/32</option></select></div>
-  `;toolbar.insertAdjacentElement('afterend',adv);
-  const patchModal=document.getElementById('patchModal');const openPatches=document.getElementById('openPatches');const closePatchModal=document.getElementById('closePatchModal');const patchFile=document.getElementById('patchFile');const savePatchBtn=document.getElementById('savePatch');
-  openPatches.addEventListener('click',()=>patchModal.classList.add('active'));closePatchModal.addEventListener('click',()=>patchModal.classList.remove('active'));
-  savePatchBtn.addEventListener('click',()=>{const data={bpm:parseInt(document.getElementById('bpm').value,10),stepsOn:UI.steps.map(s=>s.classList.contains('on')),chords:UI.chords.slice(),bass:{steps:UI.bassSteps.map(s=>s.classList.contains('on')),notes:UI.bassNotes.map(n=>n.value)},wt:{steps:UI.wtSteps.map(s=>s.classList.contains('on')),notes:UI.wtNotes.map(n=>n.value)},drums:UI.drumPattern.grid.map(row=>row.slice()),mixer:{masterVol:parseFloat(document.getElementById('masterVol').value),chorusMix:parseFloat(document.getElementById('chorusMix').value),cutoff:parseFloat(document.getElementById('cutoff').value),reso:parseFloat(document.getElementById('reso').value)}};const blob=new Blob([JSON.stringify(data,null,2)],{type:'application/json'});const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='patch.json';a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000);});
-  patchFile.addEventListener('change',async(e)=>{const f=e.target.files[0];if(!f)return;const txt=await f.text();try{const data=JSON.parse(txt);if(data.bpm){document.getElementById('bpm').value=data.bpm;document.getElementById('bpmVal').textContent=String(data.bpm);}const need=Math.max(0,(data.chords?.length||0)-UI.chords.length);for(let k=0;k<need;k++)addChordStep('Am');(data.stepsOn||[]).forEach((on,i)=>{if(UI.steps[i])UI.steps[i].classList.toggle('on',!!on);});(data.chords||[]).forEach((val,i)=>{const sel=chordsRow.querySelectorAll('select')[i];if(sel){sel.value=val;sel.dispatchEvent(new Event('change'));}});(data.bass?.steps||[]).forEach((on,i)=>{if(UI.bassSteps[i])UI.bassSteps[i].classList.toggle('on',!!on);});(data.bass?.notes||[]).forEach((v,i)=>{if(UI.bassNotes[i])UI.bassNotes[i].value=v;});(data.wt?.steps||[]).forEach((on,i)=>{if(UI.wtSteps[i])UI.wtSteps[i].classList.toggle('on',!!on);});(data.wt?.notes||[]).forEach((v,i)=>{if(UI.wtNotes[i])UI.wtNotes[i].value=v;});if(Array.isArray(data.drums)){for(let r=0;r<Math.min(4,data.drums.length);r++){for(let c=0;c<Math.min(16,data.drums[r].length);c++){UI.drumPattern.grid[r][c]=!!data.drums[r][c];const grid=document.getElementById('drumGrid');const cellIndex=(r*(16+1))+1+c;const cell=grid.children[cellIndex];if(cell&&cell.style){cell.classList.toggle('on',UI.drumPattern.grid[r][c]);cell.style.borderColor=UI.drumPattern.grid[r][c]?'var(--accent-red)':'#243b59';}}}}if(data.mixer){document.getElementById('masterVol').value=data.mixer.masterVol??document.getElementById('masterVol').value;document.getElementById('chorusMix').value=data.mixer.chorusMix??document.getElementById('chorusMix').value;document.getElementById('cutoff').value=data.mixer.cutoff??document.getElementById('cutoff').value;document.getElementById('reso').value=data.mixer.reso??document.getElementById('reso').value;['masterVol','chorusMix','cutoff','reso'].forEach(id=>document.getElementById(id).dispatchEvent(new Event('input')));}patchModal.classList.remove('active');}catch(err){alert('Грешен JSON: '+err.message);}});
-  const startBtn=document.getElementById('startBtn');const stopBtn=document.getElementById('stopBtn');const EXT={timer:null,i:0,running:false};
-  function stepMs(){return 60000/parseInt(document.getElementById('bpm').value,10)/2}function nextIndex(N){return(EXT.i+1)%N}
-  function triggerChord(i,t,ms){const sel=UI.chords[i];if(!sel)return;const notes=Theory.chordToNotes(sel);const arpOn=document.getElementById('arpOn').checked;const nrOn=document.getElementById('nrOn').checked;if(arpOn){const rateDiv=parseInt(document.getElementById('arpRate').value,10);const dir=document.getElementById('arpDir').value;const oct=parseInt(document.getElementById('arpOct').value,10);const gate=parseFloat(document.getElementById('arpGate').value);let seq=notes.slice();for(let o=2;o<=oct;o++){const mul=Math.pow(2,o-1);seq=seq.concat(notes.map(n=>n*mul));}function seqOrder(n,d){if(d==='up')return n.slice();if(d==='down')return n.slice().reverse();if(d==='updown'){const a=n.slice();const b=n.slice().reverse();b.shift();b.pop();return a.concat(b)}if(d==='random'){const a=n.slice();for(let i=a.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[a[i],a[j]]=[a[j],a[i]]}return a}return n.slice()}seq=seqOrder(seq,dir);const per=(ms/1000)*(8/rateDiv);let tt=t;seq.forEach(nf=>{Audio.playVoice({freq:nf,time:tt,dur:per*gate,vel:.9});tt+=per;if(tt>t+(ms/1000))return});}else if(nrOn){const rateDiv=parseInt(document.getElementById('nrRate').value,10);const per=(ms/1000)*(8/rateDiv);let tt=t;while(tt<=t+(ms/1000)-per*.1){notes.forEach(nf=>Audio.playVoice({freq:nf,time:tt,dur:per*.85,vel:.9}));tt+=per}}else{notes.forEach(nf=>Audio.playVoice({freq:nf,time:t,dur:ms/1000*.9,vel:.9}))}}
-  function tick(){if(!EXT.running)return;const ms=stepMs();const t=Audio.ctx.currentTime;const N=UI.steps.length||8;const i=EXT.i;UI.playheadEl.style.left=((i/N)*100)+'%';if(UI.steps[i]&&UI.steps[i].classList.contains('on')){triggerChord(i,t,ms);if(Arranger.isArmed()){const rootFreq=Theory.chordToNotes(UI.chords[i])[0];Arranger.record({type:'note',freq:rootFreq,dur:ms/1000*.9,lane:'chord'})}}if(UI.bassSteps[i]&&UI.bassSteps[i].classList.contains('on')){const f=Theory.freq(UI.bassNotes[i].value);Audio.B303.trig({freq:f,time:t,dur:ms/1000*.95,slide:window.__b303Slide,reso:window.__b303Reso,accent:window.__b303Accent});if(Arranger.isArmed())Arranger.record({type:'bass303',freq:f,dur:ms/1000*.95,lane:'bass303'})}if(UI.wtSteps[i]&&UI.wtSteps[i].classList.contains('on')){const f=Theory.freq(UI.wtNotes[i].value);Audio.WT.trig({freq:f,time:t});if(Arranger.isArmed())Arranger.record({type:'wt',freq:f,dur:parseFloat(document.getElementById('wtHold').value),lane:'wt'})}const col=(i*2)%16;if(UI.drumPattern.grid[0][col]){Audio.kick(t,1.0);if(Arranger.isArmed())Arranger.record({type:'drums',label:'Kick',dur:.1,lane:'drums'})}if(UI.drumPattern.grid[1][col]){Audio.snare(t,.85);if(Arranger.isArmed())Arranger.record({type:'drums',label:'Snare',dur:.1,lane:'drums'})}if(UI.drumPattern.grid[2][col]){Audio.hat(t,.6);if(Arranger.isArmed())Arranger.record({type:'drums',label:'Hat',dur:.06,lane:'drums'})}if(UI.drumPattern.grid[3][col]){Audio.clap(t,.65);if(Arranger.isArmed())Arranger.record({type:'drums',label:'Clap',dur:.12,lane:'drums'})}EXT.i=nextIndex(N);EXT.timer=setTimeout(tick,ms)}
-  function extStart(){try{Transport.stop();}catch{}Audio.ctx.resume();if(EXT.running)return;EXT.running=true;EXT.i=0;tick()}
-  function extStop(){EXT.running=false;if(EXT.timer){clearTimeout(EXT.timer);EXT.timer=null}}
-  const startBtn=document.getElementById('startBtn');const stopBtn=document.getElementById('stopBtn');startBtn.addEventListener('click',e=>{e.stopImmediatePropagation();extStart()},true);stopBtn.addEventListener('click',e=>{e.stopImmediatePropagation();extStop()},true);
-  window.addEventListener('keydown',e=>{if(e.code==='Space'){e.preventDefault();if(EXT.running)extStop();else extStart();}});
-  try{toolbar.insertAdjacentElement('afterend',chordsRow);chordsRow.classList.add('chords-under-arp');}catch{}
-  const ROOTS=["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];const QUALS=["maj","min","maj7","min7","dom7","dim","aug","sus2"];function labelFor(r,q){if(q==="maj")return r; if(q==="min")return r+"m"; if(q==="dom7")return r+"7"; return r+" "+q;}
-  const FULL=[];for(const r of ROOTS)for(const q of QUALS)FULL.push(labelFor(r,q));
-  function ensureFullOptions(sel){if(!sel)return;const prev=sel.value;while(sel.firstChild)sel.removeChild(sel.firstChild);FULL.forEach(lab=>{const o=document.createElement('option');o.value=o.textContent=lab;sel.appendChild(o);});sel.value=FULL.includes(prev)?prev:'Am';if(window.UI){const idx=Array.prototype.indexOf.call(chordsRow.querySelectorAll('select'),sel);if(idx>=0)UI.chords[idx]=sel.value;}}
-  Array.from(chordsRow.querySelectorAll('select')).forEach(ensureFullOptions);
-  new MutationObserver(muts=>{muts.forEach(m=>m.addedNodes.forEach(node=>{if(node&&node.tagName==='SELECT')ensureFullOptions(node);if(node&&node.querySelectorAll)node.querySelectorAll('select').forEach(ensureFullOptions);}));}).observe(chordsRow,{childList:true,subtree:true});
-})();
-</script>
+
+<!-- Chord Picker Modal -->
+<div class="modal upgrade" id="chordModal">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-weight:700">Избор на акорд (12×8)</div>
+      <button id="closeChordModal" class="btn upgrade">Затвори</button>
+    </div>
+    <div class="row upgrade" style="margin-bottom:8px">
+      <span class="badge upgrade">Съвет</span>
+      <small>Двоен клик върху падащото меню на стъпка от "Chords" отваря този прозорец.</small>
+    </div>
+    <div id="modalGrid" class="grid"></div>
+  </div>
+</div>
+
+<!-- Patch Browser (Save/Load) -->
+<div class="modal upgrade" id="patchModal">
+  <div class="card">
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-weight:700">Patch / Snapshot</div>
+      <button id="closePatchModal" class="btn upgrade">Затвори</button>
+    </div>
+    <div class="row upgrade">
+      <button id="savePatch" class="btn upgrade primary">Save JSON</button>
+      <label class="btn upgrade" for="patchFile" style="cursor:pointer">Load JSON</label>
+      <input id="patchFile" type="file" accept="application/json" style="display:none" />
+    </div>
+    <small>Записва: BPM, стъпки/акорди, 303/WT ноти и стъпки, Drum grid, основни параметри.</small>
+  </div>
+</div>
 
 <script>
 (()=>{
-  if(window.__autosave_applied)return;window.__autosave_applied=true;
-  const chordsRow=document.getElementById('chordsRow');const stepsEl=document.getElementById('steps');if(!window.UI||!chordsRow||!stepsEl)return;
-  const REPO=(location.pathname.split('/')[1]||'root');const KEY=`sms:${location.host}:${REPO}:state:v1`;window.__SMS_KEY=KEY;
-  function snapshot(){const safe=(x,fn)=>(Array.isArray(x)?x.map(fn):[]);return{bpm:parseInt(document.getElementById('bpm')?.value||'120',10),stepsOn:safe(UI.steps,s=>s.classList.contains('on')),chords:Array.from(chordsRow.querySelectorAll('select')).map(s=>s.value),bass:{steps:safe(UI.bassSteps,s=>s.classList.contains('on')),notes:safe(UI.bassNotes,n=>n.value)},wt:{steps:safe(UI.wtSteps,s=>s.classList.contains('on')),notes:safe(UI.wtNotes,n=>n.value)},drums:(UI.drumPattern&&UI.drumPattern.grid)?UI.drumPattern.grid.map(r=>r.slice()):[],mixer:{masterVol:parseFloat(document.getElementById('masterVol')?.value||'0.8'),chorusMix:parseFloat(document.getElementById('chorusMix')?.value||'0'),cutoff:parseFloat(document.getElementById('cutoff')?.value||'0.5'),reso:parseFloat(document.getElementById('reso')?.value||'0.2')}};}
-  function ensureSteps(len){const have=UI.chords.length;const addBtn=document.getElementById('addStep');if(!addBtn)return;for(let k=have;k<len;k++)addBtn.click();}
-  function applyState(d){if(!d)return;if(d.bpm){const bpm=document.getElementById('bpm');const val=document.getElementById('bpmVal');if(bpm)bpm.value=d.bpm;if(val)val.textContent=String(d.bpm);}if(Array.isArray(d.chords)&&d.chords.length>UI.chords.length)ensureSteps(d.chords.length);(d.stepsOn||[]).forEach((on,i)=>{UI.steps[i]?.classList.toggle('on',!!on)});const sels=chordsRow.querySelectorAll('select');(d.chords||[]).forEach((v,i)=>{if(sels[i]){sels[i].value=v;sels[i].dispatchEvent(new Event('change'));}});(d.bass?.steps||[]).forEach((on,i)=>{UI.bassSteps?.[i]?.classList.toggle('on',!!on)});(d.bass?.notes||[]).forEach((v,i)=>{if(UI.bassNotes?.[i])UI.bassNotes[i].value=v});(d.wt?.steps||[]).forEach((on,i)=>{UI.wtSteps?.[i]?.classList.toggle('on',!!on)});(d.wt?.notes||[]).forEach((v,i)=>{if(UI.wtNotes?.[i])UI.wtNotes[i].value=v});if(Array.isArray(d.drums)&&UI.drumPattern?.grid){const grid=document.getElementById('drumGrid');for(let r=0;r<Math.min(4,d.drums.length);r++){for(let c=0;c<Math.min(16,d.drums[r].length);c++){UI.drumPattern.grid[r][c]=!!d.drums[r][c];const cellIndex=(r*(16+1))+1+c;const cell=grid?.children?.[cellIndex];if(cell&&cell.classList)cell.classList.toggle('on',UI.drumPattern.grid[r][c]);}}}const set=(id,v)=>{const el=document.getElementById(id);if(el&&v!=null){el.value=v;el.dispatchEvent(new Event('input'));}};set('masterVol',d.mixer?.masterVol);set('chorusMix',d.mixer?.chorusMix);set('cutoff',d.mixer?.cutoff);set('reso',d.mixer?.reso);}
-  try{const raw=localStorage.getItem(KEY);if(raw)applyState(JSON.parse(raw));}catch{}
-  const debounce=(fn,ms=350)=>{let t;return()=>{clearTimeout(t);t=setTimeout(fn,ms);}};function saveNow(){try{localStorage.setItem(KEY,JSON.stringify(snapshot()))}catch(e){console.warn('Autosave failed:',e)}}
-  const saveDebounced=debounce(saveNow,350);['input','change'].forEach(ev=>document.addEventListener(ev,saveDebounced,true));new MutationObserver(saveDebounced).observe(stepsEl,{childList:true,subtree:true});new MutationObserver(saveDebounced).observe(chordsRow,{childList:true,subtree:true});
-  const openPatches=document.getElementById('openPatches');const toolbar=openPatches?openPatches.closest('.row.upgrade'):null;if(toolbar){const resetBtn=document.createElement('button');resetBtn.id='fullReset';resetBtn.className='btn upgrade ghost';resetBtn.textContent='Full Reset';resetBtn.title='Изчисти всички запаметени настройки и презареди';toolbar.appendChild(resetBtn);resetBtn.addEventListener('click',()=>{if(!confirm('Изчистване на всички запаметени настройки?'))return;try{localStorage.removeItem(KEY);}catch{}location.reload();});}
+  // Guard: run after main UI has been created
+  const stepsEl = document.getElementById('steps');
+  const chordsRow = document.getElementById('chordsRow');
+  if(!stepsEl || !chordsRow || typeof UI === 'undefined' || !UI.steps || !UI.chords){
+    console.warn('[Upgrade] Не намерих базовите елементи (steps/chords/UI). Пропускам инициализация.');
+    return;
+  }
+
+  /* ========= 1) Add Step (динамични стъпки за акорди) ========= */
+  const addBar = document.createElement('div');
+  addBar.className = 'row upgrade';
+  addBar.innerHTML = `
+    <button id="addStep" class="btn upgrade primary" title="Добави нова стъпка за акорди">+ Step</button>
+    <button id="openPatches" class="btn upgrade" title="Patch Save/Load">Patches</button>
+  `;
+  // Insert just below the #steps grid
+  stepsEl.parentElement.insertBefore(addBar, stepsEl.nextSibling);
+
+  function updateGridlines(){
+    const N = UI.steps.length;
+    // remove existing gridlines in #steps (keep playhead as first child)
+    const nodes = Array.from(stepsEl.querySelectorAll('.gridline'));
+    nodes.forEach(n => n.remove());
+    for(let i=1;i<N;i++){
+      const gl = document.createElement('div');
+      gl.className = 'gridline';
+      gl.style.left = ((i/N)*100)+'%';
+      stepsEl.appendChild(gl);
+    }
+  }
+
+  function cloneChordOptions(){
+    // take options from the first select if present, else build a 12×8 list
+    const first = chordsRow.querySelector('select');
+    if(first){
+      return Array.from(first.options).map(o => o.value);
+    }
+    const roots = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+    const quals = ["maj","min","maj7","min7","dom7","dim","aug","sus2"];
+    const out=[]; for(const r of roots){ for(const q of quals){ out.push(r + (q==="maj"?"": (q==="min"?"m": (q==="dom7"?"7":q)))); } }
+    return out;
+  }
+  const chordOptionsCache = cloneChordOptions();
+
+  function addChordStep(defaultChord = 'Am'){
+    const i = UI.steps.length;
+    // 1) add step cell
+    const d = document.createElement('div'); d.className='step'; d.textContent = (i+1);
+    d.addEventListener('click', ()=> d.classList.toggle('on'));
+    stepsEl.appendChild(d); UI.steps.push(d);
+
+    // 2) add chord select
+    const s = document.createElement('select');
+    chordOptionsCache.forEach(opt => { const o=document.createElement('option'); o.value=o.textContent=opt; s.appendChild(o); });
+    s.value = defaultChord;
+    s.addEventListener('change', ()=> { UI.chords[i] = s.value; });
+    chordsRow.appendChild(s); UI.chords.push(defaultChord);
+
+    updateGridlines();
+  }
+
+  document.getElementById('addStep').addEventListener('click', ()=> addChordStep(UI.chords[UI.chords.length-1] || 'Am'));
+
+  // initial align of gridlines to existing length
+  updateGridlines();
+
+  /* ========= 2) Chord Modal (12×8) — двоен клик върху селект ========= */
+  const chordModal = document.getElementById('chordModal');
+  const modalGrid = document.getElementById('modalGrid');
+  const closeChordModal = document.getElementById('closeChordModal');
+  const roots = ["C","C#","D","D#","E","F","F#","G","G#","A","A#","B"];
+  const quals = ["maj","min","maj7","min7","dom7","dim","aug","sus2"];
+  let targetSelect = null;
+  // Build grid: 12 rows × 8 cols flattened
+  modalGrid.style.gridTemplateColumns = 'repeat(8, minmax(0,1fr))';
+  for(const r of roots){
+    for(const q of quals){
+      const cell = document.createElement('div');
+      const label = q==="maj" ? r : (q==="min" ? (r+"m") : (q==="dom7" ? (r+"7") : (r+" "+q)));
+      cell.textContent = label;
+      cell.className = 'cell';
+      cell.addEventListener('click', ()=>{
+        if(targetSelect){
+          targetSelect.value = label;
+          targetSelect.dispatchEvent(new Event('change'));
+        }
+        chordModal.classList.remove('active');
+      });
+      modalGrid.appendChild(cell);
+    }
+  }
+  closeChordModal.addEventListener('click', ()=> chordModal.classList.remove('active'));
+
+  function bindChordPickers(){
+    Array.from(chordsRow.querySelectorAll('select')).forEach(sel => {
+      sel.addEventListener('dblclick', ()=>{ targetSelect = sel; chordModal.classList.add('active'); });
+    });
+  }
+  bindChordPickers();
+
+  // Re-bind when we add steps dynamically
+  const chordsObserver = new MutationObserver(bindChordPickers);
+  chordsObserver.observe(chordsRow, { childList: true });
+
+  /* ========= 3) Arp + Note-Repeat (контроли и логика) ========= */
+  const adv = document.createElement('div');
+  adv.className = 'row upgrade';
+  adv.innerHTML = `
+    <div class="control upgrade" title="Arpeggiator On/Off">
+      <label>Arp On</label>
+      <input id="arpOn" type="checkbox" />
+    </div>
+    <div class="control upgrade">
+      <label>Arp Rate</label>
+      <select id="arpRate">
+        <option value="4">1/4</option><option value="8" selected>1/8</option>
+        <option value="16">1/16</option><option value="32">1/32</option>
+      </select>
+    </div>
+    <div class="control upgrade">
+      <label>Arp Dir</label>
+      <select id="arpDir">
+        <option value="up">Up</option><option value="down">Down</option>
+        <option value="updown">Up-Down</option><option value="random">Random</option>
+      </select>
+    </div>
+    <div class="control upgrade">
+      <label>Arp Oct</label>
+      <select id="arpOct">
+        <option value="1" selected>×1</option><option value="2">×2</option><option value="3">×3</option>
+      </select>
+    </div>
+    <div class="control upgrade">
+      <label>Gate</label>
+      <input id="arpGate" type="range" min="0.1" max="0.95" step="0.05" value="0.6" />
+    </div>
+    <div class="control upgrade" style="margin-left:16px" title="Note-Repeat On/Off (повтаря целия акорд)">
+      <label>Note Repeat</label>
+      <input id="nrOn" type="checkbox" />
+    </div>
+    <div class="control upgrade">
+      <label>NR Rate</label>
+      <select id="nrRate">
+        <option value="4">1/4</option><option value="8" selected>1/8</option>
+        <option value="16">1/16</option><option value="32">1/32</option>
+      </select>
+    </div>
+  `;
+  // place after addBar
+  addBar.parentElement.insertBefore(adv, addBar.nextSibling);
+
+  function seqOrder(notes, dir){
+    if(dir==='up') return notes.slice();
+    if(dir==='down') return notes.slice().reverse();
+    if(dir==='updown'){ const a=notes.slice(); const b=notes.slice().reverse(); b.shift(); b.pop(); return a.concat(b); }
+    if(dir==='random'){ const a=notes.slice(); for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]]; } return a; }
+    return notes.slice();
+  }
+
+  /* ========= 4) Patch Save/Load ========= */
+  const patchModal = document.getElementById('patchModal');
+  const openPatches = document.getElementById('openPatches');
+  const closePatchModal = document.getElementById('closePatchModal');
+  const patchFile = document.getElementById('patchFile');
+  const savePatchBtn = document.getElementById('savePatch');
+
+  openPatches.addEventListener('click', ()=> patchModal.classList.add('active'));
+  closePatchModal.addEventListener('click', ()=> patchModal.classList.remove('active'));
+
+  savePatchBtn.addEventListener('click', ()=>{
+    const data = {
+      bpm: parseInt(document.getElementById('bpm').value,10),
+      stepsOn: UI.steps.map(s => s.classList.contains('on')),
+      chords: UI.chords.slice(),
+      bass: { steps: UI.bassSteps.map(s => s.classList.contains('on')), notes: UI.bassNotes.map(n => n.value) },
+      wt:   { steps: UI.wtSteps.map(s => s.classList.contains('on')), notes: UI.wtNotes.map(n => n.value) },
+      drums: UI.drumPattern.grid.map(row => row.slice()),
+      mixer: {
+        masterVol: parseFloat(document.getElementById('masterVol').value),
+        chorusMix: parseFloat(document.getElementById('chorusMix').value),
+        cutoff: parseFloat(document.getElementById('cutoff').value),
+        reso: parseFloat(document.getElementById('reso').value)
+      }
+    };
+    const blob = new Blob([JSON.stringify(data,null,2)], {type:'application/json'});
+    const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = 'patch.json'; a.click();
+    setTimeout(()=> URL.revokeObjectURL(a.href), 1000);
+  });
+
+  patchFile.addEventListener('change', async (e)=>{
+    const f = e.target.files[0]; if(!f) return;
+    const txt = await f.text();
+    try{
+      const data = JSON.parse(txt);
+      if(data.bpm) { document.getElementById('bpm').value = data.bpm; document.getElementById('bpmVal').textContent = String(data.bpm); }
+      // grow chord steps if needed
+      const need = Math.max(0, (data.chords?.length||0) - UI.chords.length);
+      for(let k=0;k<need;k++) addChordStep('Am');
+      // apply steps/chords
+      (data.stepsOn||[]).forEach((on,i)=>{ if(UI.steps[i]) UI.steps[i].classList.toggle('on', !!on); });
+      (data.chords||[]).forEach((val,i)=>{ const sel = chordsRow.querySelectorAll('select')[i]; if(sel){ sel.value = val; sel.dispatchEvent(new Event('change')); } });
+      // Bass / WT
+      (data.bass?.steps||[]).forEach((on,i)=>{ if(UI.bassSteps[i]) UI.bassSteps[i].classList.toggle('on', !!on); });
+      (data.bass?.notes||[]).forEach((v,i)=>{ if(UI.bassNotes[i]) UI.bassNotes[i].value = v; });
+      (data.wt?.steps||[]).forEach((on,i)=>{ if(UI.wtSteps[i]) UI.wtSteps[i].classList.toggle('on', !!on); });
+      (data.wt?.notes||[]).forEach((v,i)=>{ if(UI.wtNotes[i]) UI.wtNotes[i].value = v; });
+      // Drums
+      if(Array.isArray(data.drums)){
+        for(let r=0;r<Math.min(4, data.drums.length); r++){
+          for(let c=0;c<Math.min(16, data.drums[r].length); c++){
+            UI.drumPattern.grid[r][c] = !!data.drums[r][c];
+            // reflect to DOM (find nth cell: there are 4 name cells first)
+            const grid = document.getElementById('drumGrid');
+            const cellIndex = (r * (16+1)) + 1 + c; // +1 for the row label col
+            const cell = grid.children[cellIndex];
+            if(cell && cell.style){ cell.classList.toggle('on', UI.drumPattern.grid[r][c]); cell.style.borderColor = UI.drumPattern.grid[r][c] ? 'var(--accent-red)' : '#243b59'; }
+          }
+        }
+      }
+      // Mixer
+      if(data.mixer){
+        document.getElementById('masterVol').value = data.mixer.masterVol ?? document.getElementById('masterVol').value;
+        document.getElementById('chorusMix').value = data.mixer.chorusMix ?? document.getElementById('chorusMix').value;
+        document.getElementById('cutoff').value = data.mixer.cutoff ?? document.getElementById('cutoff').value;
+        document.getElementById('reso').value = data.mixer.reso ?? document.getElementById('reso').value;
+        // trigger input events so Audio core updates
+        ['masterVol','chorusMix','cutoff','reso'].forEach(id=> document.getElementById(id).dispatchEvent(new Event('input')));
+      }
+      patchModal.classList.remove('active');
+    }catch(err){
+      alert('Грешен JSON: ' + err.message);
+    }
+  });
+
+  /* ========= 5) Extended Transport (динамични стъпки + Arp/NR) ========= */
+  const startBtn = document.getElementById('startBtn');
+  const stopBtn = document.getElementById('stopBtn');
+
+  // Local scheduler to avoid editing the original Transport.tick
+  const EXT = { timer:null, i:0, running:false };
+
+  function stepMs(){ return 60000 / parseInt(document.getElementById('bpm').value,10) / 2; } // 8ths
+  function nextIndex(N){ return (EXT.i + 1) % N; }
+
+  function triggerChord(i, t, ms){
+    const sel = UI.chords[i]; if(!sel) return;
+    const notes = Theory.chordToNotes(sel);
+    const ctx = Audio.ctx;
+    const arpOn = document.getElementById('arpOn').checked;
+    const nrOn  = document.getElementById('nrOn').checked;
+
+    if(arpOn){
+      const rateDiv = parseInt(document.getElementById('arpRate').value, 10); // e.g., 8 -> 1/8
+      const dir = document.getElementById('arpDir').value;
+      const oct = parseInt(document.getElementById('arpOct').value, 10);
+      const gate = parseFloat(document.getElementById('arpGate').value);
+      // expand notes by octaves
+      let seq = notes.slice();
+      const last = notes[notes.length-1];
+      for(let o=2; o<=oct; o++){
+        const mul = Math.pow(2, o-1);
+        seq = seq.concat(notes.map(n => n * mul));
+      }
+      seq = seqOrder(seq, dir);
+      const per = (ms/1000) * (8 / rateDiv); // 8th note base
+      let tt = t;
+      seq.forEach(nf => {
+        Audio.playVoice({freq:nf, time:tt, dur:per*gate, vel:0.9});
+        tt += per;
+        if(tt > t + (ms/1000)) return; // don't run beyond step duration
+      });
+    } else if(nrOn){
+      const rateDiv = parseInt(document.getElementById('nrRate').value, 10);
+      const per = (ms/1000) * (8 / rateDiv);
+      let tt = t;
+      while(tt <= t + (ms/1000) - per*0.1){
+        notes.forEach(nf => Audio.playVoice({freq:nf, time:tt, dur:per*0.85, vel:0.9}));
+        tt += per;
+      }
+    } else {
+      // original single-hit
+      notes.forEach(nf => Audio.playVoice({freq:nf, time:t, dur:ms/1000*0.9, vel:0.9}));
+    }
+  }
+
+  function tick(){
+    if(!EXT.running) return;
+    const ms = stepMs();
+    const t = Audio.ctx.currentTime;
+    const N = UI.steps.length || 8;
+    const i = EXT.i;
+
+    // playhead position
+    UI.playheadEl.style.left = ((i/N)*100)+'%';
+
+    // Chord lane
+    if(UI.steps[i] && UI.steps[i].classList.contains('on')){
+      triggerChord(i, t, ms);
+      if(Arranger.isArmed()){
+        // record just the root note of the chord for visuals
+        const rootFreq = Theory.chordToNotes(UI.chords[i])[0];
+        Arranger.record({type:'note', freq:rootFreq, dur:ms/1000*0.9, lane:'chord'});
+      }
+    }
+
+    // Bass 303 lane (guard for indices beyond 8)
+    if(UI.bassSteps[i] && UI.bassSteps[i].classList.contains('on')){
+      const f = Theory.freq(UI.bassNotes[i].value);
+      Audio.B303.trig({freq:f,time:t,dur:ms/1000*0.95,slide:window.__b303Slide,reso:window.__b303Reso,accent:window.__b303Accent});
+      if(Arranger.isArmed()) Arranger.record({type:'bass303', freq:f, dur:ms/1000*0.95, lane:'bass303'});
+    }
+
+    // WT lane
+    if(UI.wtSteps[i] && UI.wtSteps[i].classList.contains('on')){
+      const f = Theory.freq(UI.wtNotes[i].value);
+      Audio.WT.trig({freq:f,time:t});
+      if(Arranger.isArmed()) Arranger.record({type:'wt', freq:f, dur:parseFloat(document.getElementById('wtHold').value), lane:'wt'});
+    }
+
+    // Drums (map 8th steps to 16-grid)
+    const col = (i*2) % 16;
+    if(UI.drumPattern.grid[0][col]){ Audio.kick(t,1.0); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Kick', dur:0.1, lane:'drums'}); }
+    if(UI.drumPattern.grid[1][col]){ Audio.snare(t,0.85); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Snare', dur:0.1, lane:'drums'}); }
+    if(UI.drumPattern.grid[2][col]){ Audio.hat(t,0.6); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Hat', dur:0.06, lane:'drums'}); }
+    if(UI.drumPattern.grid[3][col]){ Audio.clap(t,0.65); if(Arranger.isArmed()) Arranger.record({type:'drums', label:'Clap', dur:0.12, lane:'drums'}); }
+
+    EXT.i = nextIndex(N);
+    EXT.timer = setTimeout(tick, ms);
+  }
+
+  function extStart(){
+    try{ Transport.stop(); }catch{}
+    Audio.ctx.resume();
+    if(EXT.running) return;
+    EXT.running = true; EXT.i = 0;
+    tick();
+  }
+  function extStop(){
+    EXT.running = false;
+    if(EXT.timer){ clearTimeout(EXT.timer); EXT.timer = null; }
+  }
+
+  // Rebind transport buttons to the extended scheduler
+  startBtn.addEventListener('click', (e)=>{ e.stopImmediatePropagation(); extStart(); }, true);
+  stopBtn.addEventListener('click',  (e)=>{ e.stopImmediatePropagation(); extStop();  }, true);
+
+  // Keyboard: space = start/stop toggle
+  window.addEventListener('keydown', (e)=>{
+    if(e.code === 'Space'){
+      e.preventDefault();
+      if(EXT.running) extStop(); else extStart();
+    }
+  });
+})();
+</script>
+
+
+<!-- === PATCH #2: Move Chords row under ARP; add "– Step" (remove) === -->
+<style>
+  /* small spacing when chords row is moved under ARP controls */
+  .chords-under-arp { margin-top: 10px; }
+</style>
+<script>
+(() => {
+  if (window.__patch2_applied) return;
+  window.__patch2_applied = true;
+
+  const chordsRow = document.getElementById('chordsRow');
+  const stepsEl   = document.getElementById('steps');
+  const addBtn    = document.getElementById('addStep');
+  const arpOnEl   = document.getElementById('arpOn');
+
+  if (!chordsRow || !stepsEl || !addBtn || !arpOnEl) {
+    console.warn('[Patch#2] Missing one of required anchors (chordsRow/steps/addStep/arpOn).');
+    return;
+  }
+
+  // 1) Move the "Chords" selects under the ARP row (exactly after the row that contains Arp On)
+  // Find the ARP control row container and move chordsRow just after it.
+  const arpRow = arpOnEl.closest('.row.upgrade') || arpOnEl.parentElement;
+  try {
+    if (arpRow && chordsRow) {
+      arpRow.insertAdjacentElement('afterend', chordsRow);
+      chordsRow.classList.add('chords-under-arp');
+    }
+  } catch (e) {
+    console.warn('[Patch#2] Could not move chordsRow after ARP row:', e);
+  }
+
+  // 2) Add a "– Step" button next to "+ Step" to remove the last step
+  const removeBtn = document.createElement('button');
+  removeBtn.id = 'removeStep';
+  removeBtn.className = 'btn upgrade danger';
+  removeBtn.textContent = '– Step';
+  removeBtn.title = 'Премахни последната стъпка (минимум 1)';
+  // place it immediately after +Step
+  addBtn.insertAdjacentElement('afterend', removeBtn);
+
+  // Helper to rebuild gridlines for the steps track
+  function rebuildGridlines() {
+    const N = (window.UI && UI.steps ? UI.steps.length : stepsEl.querySelectorAll('.step').length);
+    Array.from(stepsEl.querySelectorAll('.gridline')).forEach(n => n.remove());
+    for (let i = 1; i < N; i++) {
+      const gl = document.createElement('div');
+      gl.className = 'gridline';
+      gl.style.left = ((i / N) * 100) + '%';
+      stepsEl.appendChild(gl);
+    }
+  }
+
+  removeBtn.addEventListener('click', () => {
+    try {
+      const stepCells = stepsEl.querySelectorAll('.step');
+      const chordSelects = chordsRow.querySelectorAll('select');
+      // keep at least 1 step to avoid degenerate state
+      if (stepCells.length <= 1 || chordSelects.length <= 1) return;
+
+      // Remove last chord select
+      const lastSel = chordSelects[chordSelects.length - 1];
+      if (lastSel && lastSel.parentElement) lastSel.parentElement.removeChild(lastSel);
+
+      // Remove last visual step cell
+      const lastStep = stepCells[stepCells.length - 1];
+      if (lastStep && lastStep.parentElement) lastStep.parentElement.removeChild(lastStep);
+
+      // Sync UI arrays if present
+      if (window.UI) {
+        if (Array.isArray(UI.steps) && UI.steps.length) UI.steps.pop();
+        if (Array.isArray(UI.chords) && UI.chords.length) UI.chords.pop();
+      }
+
+      rebuildGridlines();
+    } catch (err) {
+      console.warn('[Patch#2] remove step failed:', err);
+    }
+  });
+
+  // Rebuild gridlines once after potential layout move
+  rebuildGridlines();
+})();
+</script>
+
+
+<!-- === PATCH #3: Move Chords row directly under (+ Step / – Step / Patches) buttons === -->
+<script>
+(() => {
+  if (window.__patch3_applied) return;
+  window.__patch3_applied = true;
+
+  const chordsRow = document.getElementById('chordsRow');
+  const addBtn    = document.getElementById('addStep');   // exists from Patch #1
+  const removeBtn = document.getElementById('removeStep'); // exists from Patch #2
+
+  if (!chordsRow || !addBtn) {
+    console.warn('[Patch#3] Missing chordsRow or addStep button.');
+    return;
+  }
+
+  // The toolbar row is the parent .row.upgrade that contains + Step / – Step / Patches
+  const toolbar = addBtn.closest('.row.upgrade') || addBtn.parentElement;
+  if (!toolbar) {
+    console.warn('[Patch#3] Could not locate toolbar row.');
+    return;
+  }
+
+  // Move chordsRow right AFTER the toolbar row (so visually it sits under the buttons)
+  try {
+    toolbar.insertAdjacentElement('afterend', chordsRow);
+    chordsRow.classList.add('chords-under-arp'); // reuse small spacing style
+  } catch (e) {
+    console.warn('[Patch#3] Moving chordsRow failed:', e);
+  }
 })();
 </script>
 
